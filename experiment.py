@@ -14,3 +14,6 @@
     You should have received a copy of the GNU General Public License
     along with dnnmapper.  If not, see <http://www.gnu.org/licenses/>.
 """
+from utils import ReLU, Sigmoid, Tanh, SoftMax
+
+CUR_ACIVATION_FUNCTION = Sigmoid

@@ -67,6 +67,8 @@ from theano.tensor.shared_randomstreams import RandomStreams
 
 from utils import tile_raster_images, load_mnist
 
+from experiment import CUR_ACIVATION_FUNCTION as af
+
 try:
     import PIL.Image as Image
 except ImportError:
@@ -245,14 +247,14 @@ class dA(object):
 
     def get_hidden_values(self, input):
         """ Computes the values of the hidden layer """
-        return T.nnet.sigmoid(T.dot(input, self.W) + self.b)
+        return af(T.dot(input, self.W) + self.b)
 
     def get_reconstructed_input(self, hidden):
         """Computes the reconstructed input given the values of the
         hidden layer
 
         """
-        return T.nnet.sigmoid(T.dot(hidden, self.W_prime) + self.b_prime)
+        return af(T.dot(hidden, self.W_prime) + self.b_prime)
 
     def get_cost_updates(self, corruption_level, learning_rate):
         """ This function computes the cost and the updates for one trainng
@@ -331,7 +333,7 @@ def test_dA(learning_rate=0.1, training_epochs=15,
     )
 
     cost, updates = da.get_cost_updates(
-        corruption_level=0.,
+        corruption_level=0.3,
         learning_rate=learning_rate
     )
 

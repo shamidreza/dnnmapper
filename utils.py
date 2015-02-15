@@ -37,21 +37,43 @@ import numpy
 import theano
 import theano.tensor as T
 
-def load_vc(dataset='../gitlab/voice-conversion/src/test/data/clb_slt_MCEP24_static_span0.data'):
-    import sys
-    sys.path.append('../gitlab/voice-conversion/src')
-    import voice_conversion
+#### rectified linear unit
+def ReLU(x):
+    return T.maximum(0.0, x)
+#### sigmoid
+def Sigmoid(x):
+    return T.nnet.sigmoid(x)
+#### tanh
+def Tanh(x):
+    return T.tanh(x)
+#### softmax
+def SoftMax(x):
+    return T.nnet.softmax(x)
+
+def load_all_speakers():
+    pass
+
+def load_vc(dataset='c2s.npy'):
+    #import sys
+    #sys.path.append('../gitlab/voice-conversion/src')
+    #import voice_conversion
     
     import pickle
     f=open(dataset,'r')
-    vcdata=pickle.load(f)
-    x=vcdata['aligned_data1'][:,:24]
-    y=vcdata['aligned_data2'][:,:24]
+    #vcdata=pickle.load(f)
+    #x=vcdata['aligned_data1'][:,:24]
+    #y=vcdata['aligned_data2'][:,:24]
+    x=numpy.load(f).astype(numpy.float32)
+    y=numpy.load(f).astype(numpy.float32)
+    x=numpy.log(x)##
+    y=numpy.log(y)##
+
+    f.close()
     num = x.shape[0]
     st_train = 0
-    en_train = int(num * (64.0/200.0))
+    en_train = int(num * (64.0/100.0)) # 64 train,18 valid, 18 test
     st_valid = en_train
-    en_valid = en_train+int(num * (36.0/200.0))
+    en_valid = en_train+int(num * (18.0/100.0))
     st_test = en_valid
     en_test = num
     

@@ -68,6 +68,8 @@ from dnn_dropout import HiddenLayer
 from ae_dropout import dA
 from utils import load_mnist
 
+from experiment import CUR_ACIVATION_FUNCTION as af
+
 # start-snippet-1
 class SdA(object):
     """Stacked denoising auto-encoder class (SdA)
@@ -162,7 +164,7 @@ class SdA(object):
                                         input=layer_input,
                                         n_in=input_size,
                                         n_out=hidden_layers_sizes[i],
-                                        activation=T.nnet.sigmoid)
+                                        activation=af)
             # add the layer to our list of layers
             self.sigmoid_layers.append(sigmoid_layer)
             # its arguably a philosophical question...

@@ -66,6 +66,8 @@ import theano
 import theano.tensor as T
 from utils import load_mnist
 
+from experiment import CUR_ACIVATION_FUNCTION as af
+
 class LogisticRegression(object):
     """Multi-class Logistic Regression Class
 
