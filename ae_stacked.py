@@ -21,16 +21,7 @@ the LICENSE provided as part of the dnnmapper software.
     along with dnnmapper.  If not, see <http://www.gnu.org/licenses/>.
 """
 """
-http://deeplearning.net/tutorial/LICENSE.html:
-Copyright (c) 2008–2013, Theano Development Team All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
-
-Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-Neither the name of Theano nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ‘’AS IS’’ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""
+http://deeplearning.net/tutorial/LICENSE.html"""
 """
  This tutorial introduces stacked denoising auto-encoders (SdA) using Theano.
 
@@ -72,10 +63,10 @@ import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
-from logistic_sgd import LogisticRegression, load_data
-from mlp import HiddenLayer
-from dA import dA
-
+from logistic_sgd import LogisticRegression
+from dnn_dropout import HiddenLayer
+from ae_dropout import dA
+from utils import load_mnist
 
 # start-snippet-1
 class SdA(object):
@@ -382,7 +373,7 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
 
     """
 
-    datasets = load_data(dataset)
+    datasets = load_mnist(dataset)
 
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]

@@ -57,7 +57,7 @@ import theano.printing
 import theano.tensor.shared_randomstreams
 
 from logistic_sgd import LogisticRegression
-from load_data import load_umontreal_data, load_mnist
+from utils import load_mnist
 
 
 ##################################
