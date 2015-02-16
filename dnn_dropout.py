@@ -128,9 +128,8 @@ class DropoutHiddenLayer(HiddenLayer):
         super(DropoutHiddenLayer, self).__init__(
                 rng=rng, input=input, n_in=n_in, n_out=n_out, W=W, b=b,
                 activation=activation, use_bias=use_bias)
-
+        
         self.output = _dropout_from_layer(rng, self.output, p=dropout_rate)
-
 
 class MLP(object):
     """A multilayer perceptron with all the trappings required to do dropout
@@ -152,8 +151,9 @@ class MLP(object):
         self.dropout_layers = []
         next_layer_input = input
         #first_layer = True
-        # dropout the input
+        # dropout the input        
         next_dropout_layer_input = _dropout_from_layer(rng, input, p=dropout_rates[0])
+        
         layer_counter = 0        
         for n_in, n_out in weight_matrix_sizes[:-1]:
             next_dropout_layer = DropoutHiddenLayer(rng=rng,
@@ -198,15 +198,25 @@ class MLP(object):
 
         # Use the negative log likelihood of the logistic regression layer as
         # the objective.
-        self.dropout_negative_log_likelihood = self.dropout_layers[-1].mse
-        self.dropout_errors = self.dropout_layers[-1].mse
-
-        self.negative_log_likelihood = self.layers[-1].mse
-        self.errors = self.layers[-1].mse
+        
+        
 
         # Grab all the parameters together.
         self.params = [ param for layer in self.dropout_layers for param in layer.params ]
+    def dropout_negative_log_likelihood(self, y):
+        return self.dropout_layers[-1].mse(y)
+    def dropout_errors(self, y):
+        return self.dropout_layers[-1].mse(y)
+    def negative_log_likelihood(self, y):
+        return self.layers[-1].mse(y)
+    def errors(self, y):
+        return self.layers[-1].mse(y)
+    
+    #self.dropout_negative_log_likelihood = self.dropout_layers[-1].mse
+    #self.dropout_errors = self.dropout_layers[-1].mse
 
+    #self.negative_log_likelihood = self.layers[-1].mse
+    #self.errors = self.layers[-1].mse
 
 def test_mlp(
         initial_learning_rate,
@@ -240,8 +250,8 @@ def test_mlp(
     from utils import load_vc
     #datasets = load_mnist(dataset)
     print '... loading the data'
-
-    datasets, x_mean, y_mean, x_std, y_std = load_vc()
+    dataset = 'c2s_pre.npy'
+    datasets, x_mean, y_mean, x_std, y_std = load_vc(dataset)
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]
     test_set_x, test_set_y = datasets[2]
@@ -394,6 +404,7 @@ def test_mlp(
     X1=test_set_x.eval()
     X1 *= x_std
     X1 += x_mean
+    last_reg = 10000.0
     while epoch_counter < n_epochs:
         # Train this epoch
         epoch_counter = epoch_counter + 1
@@ -421,9 +432,14 @@ def test_mlp(
         YH += y_mean
         print 'Regression ', np.mean(np.mean((YH-X2)**2,1))
         print 'Baseline! ', np.mean(np.mean((X1-X2)**2,1))
-
-        
-
+        if np.mean(np.mean((YH-X2)**2,1)) < last_reg:
+            print 'This is better. Saving the model to ' + dataset+'.dnn.pkl'
+            f = open(dataset+'.dnn.pkl','w+')
+            cPickle.dump(classifier, f)
+            f.flush()
+            f.close()
+            last_reg = np.mean(np.mean((YH-X2)**2,1))
+            
     end_time = time.clock()
     print(('Optimization complete. Best validation score of %f %% '
            'obtained at iteration %i, with test performance %f %%') %
@@ -453,7 +469,7 @@ if __name__ == '__main__':
     # activation functions for each layer
     # For this demo, we don't need to set the activation functions for the 
     # on top layer, since it is always 10-way Softmax
-    activations = [ Tanh, Tanh ]
+    activations = [ T.tanh, T.tanh ]
     
     #### the params for momentum
     mom_start = 0.5
