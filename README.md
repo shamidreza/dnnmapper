@@ -13,4 +13,6 @@ Requirements:
    
     2- theano 0.6
     
-    
+Please refer to this paper to cite this work:
+
+S.H. Mohammadi, A. Kain, Voice Conversion Using Deep Neural Networks With Speaker-Independent Pre-Training, 2014 IEEE Spoken Language Technology Workshop (SLT), 2014.    

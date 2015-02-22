@@ -141,7 +141,8 @@ class MLP(object):
             layer_sizes,
             dropout_rates,
             activations,
-            use_bias=True):
+            use_bias=True,
+            pretrained=None):
 
         #rectified_linear_activation = lambda x: T.maximum(0.0, x)
 
@@ -160,7 +161,9 @@ class MLP(object):
                     input=next_dropout_layer_input,
                     activation=activations[layer_counter],
                     n_in=n_in, n_out=n_out, use_bias=use_bias,
-                    dropout_rate=dropout_rates[layer_counter + 1])
+                    dropout_rate=dropout_rates[layer_counter + 1],
+                    W=theano.shared(pretrained.layers[layer_counter].W.eval()),
+                    b=theano.shared(pretrained.layers[layer_counter].b.eval()))
             self.dropout_layers.append(next_dropout_layer)
             next_dropout_layer_input = next_dropout_layer.output
 
@@ -250,7 +253,7 @@ def test_mlp(
     from utils import load_vc
     #datasets = load_mnist(dataset)
     print '... loading the data'
-    dataset = 'c2s_pre.npy'
+    dataset = 'c2s.npy'
     datasets, x_mean, y_mean, x_std, y_std = load_vc(dataset)
     train_set_x, train_set_y = datasets[0]
     valid_set_x, valid_set_y = datasets[1]
@@ -279,11 +282,19 @@ def test_mlp(
     rng = np.random.RandomState(random_seed)
 
     # construct the MLP class
+        
+    if 1: # load
+        f = open('c2s_pre.npy.dnn.pkl','r')
+        pretrained = cPickle.load(f)
+        f.close()
+    else:
+        pretrained=None
     classifier = MLP(rng=rng, input=x,
                      layer_sizes=layer_sizes,
                      dropout_rates=dropout_rates,
                      activations=activations,
-                     use_bias=use_bias)
+                     use_bias=use_bias,
+                     pretrained=pretrained)
 
     # Build the expresson for the cost function.
     cost = classifier.negative_log_likelihood(y)
@@ -457,7 +468,7 @@ if __name__ == '__main__':
     # and generating the dropout masks for each mini-batch
     random_seed = 1234
 
-    initial_learning_rate = 0.20
+    initial_learning_rate = 0.020
     learning_rate_decay = 0.998
     squared_filter_length_limit = 15.0
     n_epochs = 3000

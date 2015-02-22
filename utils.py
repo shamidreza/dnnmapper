@@ -87,10 +87,10 @@ def load_vc(dataset='c2s.npy'):
     y /= y_std
 
     import theano
-    train_set_x = theano.shared(numpy.asarray(x[st_train:en_train,:],
+    train_set_x = theano.shared(numpy.asarray(x[st_train:st_train+int((en_train-st_train)*(5.0/64.0)),:],##
                                 dtype=theano.config.floatX),
                                  borrow=True)
-    train_set_y = theano.shared(numpy.asarray(y[st_train:en_train,:],
+    train_set_y = theano.shared(numpy.asarray(y[st_train:st_train+int((en_train-st_train)*(5.0/64.0)),:],##
                                 dtype=theano.config.floatX),
                                  borrow=True)
     test_set_x = theano.shared(numpy.asarray(x[st_test:en_test,:],
