@@ -50,9 +50,22 @@ def Tanh(x):
 def SoftMax(x):
     return T.nnet.softmax(x)
 
-def load_all_speakers():
-    pass
+def load_vc_all_speakers():
+    from glob import iglob
+    from os import path, popen
 
+    data = np.zeros((630*3500,24*15))
+    st=0
+    for fid in iglob('spk_wav/*.pkl'):	
+	print'read_TIMIT_append_all: computing file '+ fid
+	f=open(fid, 'r')
+	cur_fx=pickle.load(f)
+	f.close()
+	data[st:st+cur_fx.shape[0],:] = cur_fx
+	st += cur_fx.shape[0]
+	    
+    data = data[:st,:]   
+    return data
 def load_vc(dataset='c2s.npy'):
     #import sys
     #sys.path.append('../gitlab/voice-conversion/src')
