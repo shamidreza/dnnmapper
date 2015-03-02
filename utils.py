@@ -33,10 +33,14 @@ image from a set of samples or weights.
 import cPickle
 import gzip
 import os
-import numpy
+import numpy as np
 import theano
 import theano.tensor as T
-
+try:
+    from matplotlib import pyplot as pp
+except:
+    print 'can not import matplotlib'
+    
 #### rectified linear unit
 def ReLU(x):
     return T.maximum(0.0, x)
@@ -50,21 +54,61 @@ def Tanh(x):
 def SoftMax(x):
     return T.nnet.softmax(x)
 
+def melCD(m1,m2):
+    if m1.ndim == 1 and m1.ndim == 1:
+	return (10.0/np.log(10.0))*(np.sqrt(2.0*np.sum((m1-m2)**2)))
+    else:
+	sum_distance = 0.0
+	for i in range(m1.shape[0]):
+	    sum_distance += (10.0/np.log(10.0))*(np.sqrt(2.0*np.sum((m1[i,:]-m2[i,:])**2)))
+	return sum_distance/m1.shape[0]
+    
+def normalize_data(data):
+    import numpy as np
+    import copy
+    new_data = copy.deepcopy(data)
+    mins = np.zeros(data.shape[1])
+    ranges = np.zeros(data.shape[1])
+
+    for i in range(new_data.shape[1]):
+	mins[i] = (new_data[:, i].min())
+	ranges[i] = (new_data[:, i].max()) - mins[i]
+	new_data[:, i] -= mins[i]
+	new_data[:, i] /= ranges[i]
+	assert np.all(new_data[:, i] >= 0.0) and np.all(new_data[:, i] <= 1.0)
+    return new_data, mins, ranges
+def unnormalize_data(data, mins, ranges):
+    import numpy as np
+    import copy
+    new_data = copy.deepcopy(data)
+    for i in range(new_data.shape[1]):	
+	new_data[:, i] *= ranges[i]
+	new_data[:, i] += mins[i]
+    return new_data
+
 def load_vc_all_speakers():
     from glob import iglob
     from os import path, popen
-
+    from os.path import exists
+    import pickle
     data = np.zeros((630*3500,24*15))
     st=0
-    for fid in iglob('spk_wav/*.pkl'):	
-	print'read_TIMIT_append_all: computing file '+ fid
+    cnt = 0
+    if exists('../TIMIT_code/spk_wav/'):
+	iter_directory = iglob('../TIMIT_code/spk_wav/*.pkl')
+    else:
+	iter_directory = iglob('../gitlab/voice-conversion/src/spk_wav/*.pkl')
+    for fid in iter_directory:
+	print'read_TIMIT_append_all: reaing file '+ fid
 	f=open(fid, 'r')
 	cur_fx=pickle.load(f)
 	f.close()
 	data[st:st+cur_fx.shape[0],:] = cur_fx
 	st += cur_fx.shape[0]
-	    
-    data = data[:st,:]   
+	cnt+=1
+	#if cnt > 10:
+	#    break
+    data = data[:st,:]
     return data
 def load_vc(dataset='c2s.npy'):
     #import sys

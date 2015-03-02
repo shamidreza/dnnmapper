@@ -217,6 +217,8 @@ class dA(object):
             self.x = input
 
         self.params = [self.W, self.b, self.b_prime]
+        xh=self.get_hidden_values(self.x)
+        self.xh = self.get_reconstructed_input(xh)
     # end-snippet-1
 
     def get_corrupted_input(self, input, corruption_level):
@@ -285,7 +287,7 @@ class dA(object):
 
         return (cost, updates)
 
-
+    
 def test_dA(learning_rate=0.1, training_epochs=15,
             dataset='mnist.pkl.gz',
             batch_size=20, output_folder='dA_plots'):

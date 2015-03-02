@@ -88,7 +88,6 @@ class SdA(object):
         theano_rng=None,
         n_ins=784,
         hidden_layers_sizes=[500, 500],
-        n_outs=10,
         corruption_levels=[0.1, 0.1]
     ):
         """ This class is made to support a variable number of layers.
@@ -185,24 +184,7 @@ class SdA(object):
                           bhid=sigmoid_layer.b)
             self.dA_layers.append(dA_layer)
         # end-snippet-2
-        # We now need to add a logistic layer on top of the MLP
-        self.logLayer = LogisticRegression(
-            input=self.sigmoid_layers[-1].output,
-            n_in=hidden_layers_sizes[-1],
-            n_out=n_outs
-        )
-
-        self.params.extend(self.logLayer.params)
-        # construct a function that implements one step of finetunining
-
-        # compute the cost for second phase of training,
-        # defined as the negative log likelihood
-        self.finetune_cost = self.logLayer.negative_log_likelihood(self.y)
-        # compute the gradients with respect to the model parameters
-        # symbolic variable that points to the number of errors made on the
-        # minibatch given by self.x and self.y
-        self.errors = self.logLayer.errors(self.y)
-
+        
     def pretraining_functions(self, train_set_x, batch_size):
         ''' Generates a list of functions, each of them implementing one
         step in trainnig the dA corresponding to the layer with same index.
@@ -253,101 +235,6 @@ class SdA(object):
             pretrain_fns.append(fn)
 
         return pretrain_fns
-
-    def build_finetune_functions(self, datasets, batch_size, learning_rate):
-        '''Generates a function `train` that implements one step of
-        finetuning, a function `validate` that computes the error on
-        a batch from the validation set, and a function `test` that
-        computes the error on a batch from the testing set
-
-        :type datasets: list of pairs of theano.tensor.TensorType
-        :param datasets: It is a list that contain all the datasets;
-                         the has to contain three pairs, `train`,
-                         `valid`, `test` in this order, where each pair
-                         is formed of two Theano variables, one for the
-                         datapoints, the other for the labels
-
-        :type batch_size: int
-        :param batch_size: size of a minibatch
-
-        :type learning_rate: float
-        :param learning_rate: learning rate used during finetune stage
-        '''
-
-        (train_set_x, train_set_y) = datasets[0]
-        (valid_set_x, valid_set_y) = datasets[1]
-        (test_set_x, test_set_y) = datasets[2]
-
-        # compute number of minibatches for training, validation and testing
-        n_valid_batches = valid_set_x.get_value(borrow=True).shape[0]
-        n_valid_batches /= batch_size
-        n_test_batches = test_set_x.get_value(borrow=True).shape[0]
-        n_test_batches /= batch_size
-
-        index = T.lscalar('index')  # index to a [mini]batch
-
-        # compute the gradients with respect to the model parameters
-        gparams = T.grad(self.finetune_cost, self.params)
-
-        # compute list of fine-tuning updates
-        updates = [
-            (param, param - gparam * learning_rate)
-            for param, gparam in zip(self.params, gparams)
-        ]
-
-        train_fn = theano.function(
-            inputs=[index],
-            outputs=self.finetune_cost,
-            updates=updates,
-            givens={
-                self.x: train_set_x[
-                    index * batch_size: (index + 1) * batch_size
-                ],
-                self.y: train_set_y[
-                    index * batch_size: (index + 1) * batch_size
-                ]
-            },
-            name='train'
-        )
-
-        test_score_i = theano.function(
-            [index],
-            self.errors,
-            givens={
-                self.x: test_set_x[
-                    index * batch_size: (index + 1) * batch_size
-                ],
-                self.y: test_set_y[
-                    index * batch_size: (index + 1) * batch_size
-                ]
-            },
-            name='test'
-        )
-
-        valid_score_i = theano.function(
-            [index],
-            self.errors,
-            givens={
-                self.x: valid_set_x[
-                    index * batch_size: (index + 1) * batch_size
-                ],
-                self.y: valid_set_y[
-                    index * batch_size: (index + 1) * batch_size
-                ]
-            },
-            name='valid'
-        )
-
-        # Create a function that scans the entire validation set
-        def valid_score():
-            return [valid_score_i(i) for i in xrange(n_valid_batches)]
-
-        # Create a function that scans the entire test set
-        def test_score():
-            return [test_score_i(i) for i in xrange(n_test_batches)]
-
-        return train_fn, valid_score, test_score
-
 
 def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
              pretrain_lr=0.001, training_epochs=1000,
