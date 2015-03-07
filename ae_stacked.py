@@ -65,7 +65,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 
 from logistic_sgd import LogisticRegression
 from dnn_dropout import HiddenLayer
-from ae_dropout import dA
+from ae_dropout import dA, dA_linear
 from utils import load_mnist
 
 from experiment import CUR_ACIVATION_FUNCTION as af
@@ -175,13 +175,22 @@ class SdA(object):
 
             # Construct a denoising autoencoder that shared weights with this
             # layer
-            dA_layer = dA(numpy_rng=numpy_rng,
+            if i ==0:
+                dA_layer = dA(numpy_rng=numpy_rng,
                           theano_rng=theano_rng,
                           input=layer_input,
                           n_visible=input_size,
                           n_hidden=hidden_layers_sizes[i],
                           W=sigmoid_layer.W,
                           bhid=sigmoid_layer.b)
+            else:
+                dA_layer = dA(numpy_rng=numpy_rng,
+                              theano_rng=theano_rng,
+                              input=layer_input,
+                              n_visible=input_size,
+                              n_hidden=hidden_layers_sizes[i],
+                              W=sigmoid_layer.W,
+                              bhid=sigmoid_layer.b)
             self.dA_layers.append(dA_layer)
         # end-snippet-2
         

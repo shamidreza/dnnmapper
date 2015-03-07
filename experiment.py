@@ -16,7 +16,7 @@
 """
 from utils import *
 
-CUR_ACIVATION_FUNCTION = ReLU
+CUR_ACIVATION_FUNCTION = Tanh
 
 def ae_all(out_file, hidden_layers_sizes=None,
            corruption_levels=None,
@@ -28,6 +28,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
     print '... loaded data with dimensions', str(data.shape[0]),'x', str(data.shape[1])
     print '... normalizing the data'
     mins, ranges = compute_normalization_factors(data)
+    import pickle
     f=open('norm.pkl','w+')
     pickle.dump(mins, f)#[24*7:24*7+24]##$
     pickle.dump(ranges, f)#[24*7:24*7+24]##$
