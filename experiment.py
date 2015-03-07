@@ -898,13 +898,13 @@ def model6_pre(): # 1,(A, Bb_joint, Bb_backprop, C_joint, C_backprop),MCEP
     pass
 
 def experiment():
-    ae_name = 'ae_100_100.pkl'
+    ae_name = 'ae_1000_1000.pkl'
     if 1: # train all TIMIT AE
-        ae_all(ae_name, hidden_layers_sizes=[500,500],               
+        ae_all(ae_name, hidden_layers_sizes=[1000,1000],               
                corruption_levels=[0.1,0.2],
-               pretrain_lr=0.05,
+               pretrain_lr=0.1,
                batch_size=20,
-               training_epochs=5)
+               training_epochs=10)
     if 1: # load norm
         f=open('norm.pkl','r')
         mins=pickle.load(f)#[24*7:24*7+24]##$
@@ -918,26 +918,18 @@ def experiment():
     if 1:
         dnn_train(model1_pre_from_siae, ae_name, 'dnn_spk20.pkl',
                   x20, y20, xv20, yv20, xt20, yt20, mins, ranges,
-                  hidden_layers_sizes=[x.eval().shape[1], 500, 500, y.eval().shape[1]],               
+                  hidden_layers_sizes=[x.eval().shape[1], 1000, 1000, y.eval().shape[1]],               
                   corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
                   lr=0.005,
                   batch_size=1,
                   training_epochs=100)
     dnn_train(model1_pre_from_speaker20, 'dnn_spk20.pkl', 'dnn.pkl', x, y, xv, yv, xt, yt, mins, ranges,
-               hidden_layers_sizes=[x.eval().shape[1], 500, 500, y.eval().shape[1]],               
+               hidden_layers_sizes=[x.eval().shape[1], 1000, 1000, y.eval().shape[1]],               
                corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
                lr=0.01,
                batch_size=1,
                training_epochs=1000)
-    models_pre = [model0_pre, model1_pre, model2_pre, model3_pre, model4_pre, model5_pre, model6_pre]
-    
-    #for model in models_pre:
-    model2_pre(x, y, xv, yv, xt, yt, mins, ranges,
-               hidden_layers_sizes=[x.eval().shape[1], 100, y.eval().shape[1]],               
-               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
-               lr=0.01,
-               batch_size=1,
-               training_epochs=1000)
+  
     
 if __name__ == "__main__":
     experiment()
