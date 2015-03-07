@@ -28,6 +28,11 @@ def ae_all(out_file, hidden_layers_sizes=None,
     print '... loaded data with dimensions', str(data.shape[0]),'x', str(data.shape[1])
     print '... normalizing the data'
     mins, ranges = compute_normalization_factors(data)
+    f=open('norm.pkl','w+')
+    pickle.dump(mins, f)#[24*7:24*7+24]##$
+    pickle.dump(ranges, f)#[24*7:24*7+24]##$
+    f.flush()
+    f.close()
     new_data = normalize_data(data, mins, ranges)
     numpy_rng = np.random.RandomState(89677)
     
