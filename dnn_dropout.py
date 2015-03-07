@@ -62,18 +62,7 @@ from logistic_sgd import LogisticRegression
 ##################################
 ## Various activation functions ##
 ##################################
-#### rectified linear unit
-def ReLU(x):
-    y = T.maximum(0.0, x)
-    return(y)
-#### sigmoid
-def Sigmoid(x):
-    y = T.nnet.sigmoid(x)
-    return(y)
-#### tanh
-def Tanh(x):
-    y = T.tanh(x)
-    return(y)
+from experiment import CUR_ACIVATION_FUNCTION as af
     
 class HiddenLayer(object):
     def __init__(self, rng, input, n_in, n_out,
@@ -194,13 +183,13 @@ class MLP(object):
         n_in, n_out = weight_matrix_sizes[-1]
         dropout_output_layer = DropoutHiddenLayer(
                 rng, next_dropout_layer_input,
-                n_in, n_out, None, 0.0, use_bias)##$make sure if we need dropout here
+                n_in, n_out, af, 0.0, use_bias)##$make sure if we need dropout here
         self.dropout_layers.append(dropout_output_layer)
 
         # Again, reuse paramters in the dropout output.
         output_layer = HiddenLayer(
             rng,
-            next_layer_input, n_in, n_out, None,
+            next_layer_input, n_in, n_out, af,##$
             # scale the weight matrix W with (1-p)
             W=dropout_output_layer.W, ##$ * (1 - dropout_rates[-1]),##$
             b=dropout_output_layer.b
