@@ -157,13 +157,21 @@ class MLP(object):
         
         layer_counter = 0        
         for n_in, n_out in weight_matrix_sizes[:-1]:
-            next_dropout_layer = DropoutHiddenLayer(rng=rng,
-                    input=next_dropout_layer_input,
-                    activation=activations[layer_counter],
-                    n_in=n_in, n_out=n_out, use_bias=use_bias,
-                    dropout_rate=dropout_rates[layer_counter + 1],
-                    W=theano.shared(pretrained.layers[layer_counter].W.eval()),
-                    b=theano.shared(pretrained.layers[layer_counter].b.eval()))
+            if pretrained:
+                next_dropout_layer = DropoutHiddenLayer(rng=rng,
+                        input=next_dropout_layer_input,
+                        activation=activations[layer_counter],
+                        n_in=n_in, n_out=n_out, use_bias=use_bias,
+                        dropout_rate=dropout_rates[layer_counter + 1],
+                        W=theano.shared(pretrained.layers[layer_counter].W.eval()),
+                        b=theano.shared(pretrained.layers[layer_counter].b.eval()))
+            else:
+                next_dropout_layer = DropoutHiddenLayer(rng=rng,
+                        input=next_dropout_layer_input,
+                        activation=activations[layer_counter],
+                        n_in=n_in, n_out=n_out, use_bias=use_bias,
+                        dropout_rate=dropout_rates[layer_counter + 1]
+                        )
             self.dropout_layers.append(next_dropout_layer)
             next_dropout_layer_input = next_dropout_layer.output
 
@@ -173,7 +181,7 @@ class MLP(object):
                     input=next_layer_input,
                     activation=activations[layer_counter],
                     # scale the weight matrix W with (1-p)
-                    W=next_dropout_layer.W * (1 - dropout_rates[layer_counter]),
+                    W=next_dropout_layer.W, ##$* (1 - dropout_rates[layer_counter]), ##$
                     b=next_dropout_layer.b,
                     n_in=n_in, n_out=n_out,
                     use_bias=use_bias)
@@ -186,15 +194,15 @@ class MLP(object):
         n_in, n_out = weight_matrix_sizes[-1]
         dropout_output_layer = DropoutHiddenLayer(
                 rng, next_dropout_layer_input,
-                n_in, n_out, T.tanh, dropout_rates[-1], use_bias)##make sure if we need dropout here
+                n_in, n_out, None, 0.0, use_bias)##$make sure if we need dropout here
         self.dropout_layers.append(dropout_output_layer)
 
         # Again, reuse paramters in the dropout output.
         output_layer = HiddenLayer(
             rng,
-            next_layer_input, n_in, n_out, T.tanh,
+            next_layer_input, n_in, n_out, None,
             # scale the weight matrix W with (1-p)
-            W=dropout_output_layer.W * (1 - dropout_rates[-1]),
+            W=dropout_output_layer.W, ##$ * (1 - dropout_rates[-1]),##$
             b=dropout_output_layer.b
             )
         self.layers.append(output_layer)
@@ -205,12 +213,16 @@ class MLP(object):
         
 
         # Grab all the parameters together.
-        self.params = [ param for layer in self.dropout_layers for param in layer.params ]
-    def dropout_negative_log_likelihood(self, y):
+        if False:##$
+            self.params = [ param for layer in self.dropout_layers for param in layer.params ]
+        else:
+            self.params = [ param for layer in self.layers for param in layer.params ]
+
+    def dropout_mse(self, y):
         return self.dropout_layers[-1].mse(y)
     def dropout_errors(self, y):
         return self.dropout_layers[-1].mse(y)
-    def negative_log_likelihood(self, y):
+    def mse(self, y):
         return self.layers[-1].mse(y)
     def errors(self, y):
         return self.layers[-1].mse(y)

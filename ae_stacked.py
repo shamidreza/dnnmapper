@@ -284,16 +284,13 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
         n_outs=10
     )
     # end-snippet-3 start-snippet-4
-    #########################
     # PRETRAINING THE MODEL #
-    #########################
     print '... getting the pretraining functions'
     pretraining_fns = sda.pretraining_functions(train_set_x=train_set_x,
                                                 batch_size=batch_size)
 
     print '... pre-training the model'
     start_time = time.clock()
-    ## Pre-train layer-wise
     corruption_levels = [.1, .2, .3]
     for i in xrange(sda.n_layers):
         # go through pretraining epochs
@@ -313,9 +310,7 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
     # end-snippet-4
-    ########################
     # FINETUNING THE MODEL #
-    ########################
 
     # get the training, validation and testing function for the model
     print '... getting the finetuning functions'

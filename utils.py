@@ -30,7 +30,7 @@ processing the outputs into a more understandable way.
 For example ``tile_raster_images`` helps in generating a easy to grasp
 image from a set of samples or weights.
 """
-import cPickle
+import pickle
 import gzip
 import os
 import numpy as np
@@ -62,8 +62,56 @@ def melCD(m1,m2):
 	for i in range(m1.shape[0]):
 	    sum_distance += (10.0/np.log(10.0))*(np.sqrt(2.0*np.sum((m1[i,:]-m2[i,:])**2)))
 	return sum_distance/m1.shape[0]
-    
-def normalize_data(data):
+
+def compute_normalization_factors(data):
+    import numpy as np
+    mins = np.zeros(data.shape[1],dtype=np.float32)
+    ranges = np.zeros(data.shape[1],dtype=np.float32)
+
+    for i in range(data.shape[1]):
+	mins[i] = (data[:, i].mean())
+	ranges[i] = (data[:, i].std())
+    return mins, ranges
+
+def compute_normalization_factors_neg1_1(data):
+    import numpy as np
+    mins = np.zeros(data.shape[1],dtype=np.float32)
+    ranges = np.zeros(data.shape[1],dtype=np.float32)
+
+    for i in range(data.shape[1]):
+	mins[i] = (data[:, i].min())
+	ranges[i] = ((data[:, i].max()) - mins[i])
+    return mins, ranges
+
+def normalize_data_neg1_1(data, mins, ranges):
+    import numpy as np
+    import copy
+    new_data = copy.deepcopy(data)
+   
+    for i in range(new_data.shape[1]):	
+	new_data[:, i] -= mins[i]
+	new_data[:, i] /= ranges[i]
+	new_data[:, i] *= 2.0
+	new_data[:, i] -= (1.0)
+	#assert np.all(new_data[:, i] >= -1.0) and np.all(new_data[:, i] <= 1.0)
+	new_data[new_data[:, i]>1.0, i] = 1.0
+	new_data[new_data[:, i]<-1.0, i] = -1.0
+
+    return data##new_data
+
+def unnormalize_data_neg1_1(data, mins, ranges):
+    import numpy as np
+    import copy
+    new_data = copy.deepcopy(data)
+    for i in range(new_data.shape[1]):
+	new_data[:, i] += 1.0
+	new_data[:, i] /= 2.0
+	new_data[:, i] *= ranges[i]
+	new_data[:, i] += mins[i]
+    return data##new_data
+
+
+def normalize_data_0_1(data):
     import numpy as np
     import copy
     new_data = copy.deepcopy(data)
@@ -75,9 +123,9 @@ def normalize_data(data):
 	ranges[i] = (new_data[:, i].max()) - mins[i]
 	new_data[:, i] -= mins[i]
 	new_data[:, i] /= ranges[i]
-	assert np.all(new_data[:, i] >= 0.0) and np.all(new_data[:, i] <= 1.0)
+	#assert np.all(new_data[:, i] >= 0.0) and np.all(new_data[:, i] <= 1.0)
     return new_data, mins, ranges
-def unnormalize_data(data, mins, ranges):
+def unnormalize_data_0_1(data, mins, ranges):
     import numpy as np
     import copy
     new_data = copy.deepcopy(data)
@@ -86,12 +134,32 @@ def unnormalize_data(data, mins, ranges):
 	new_data[:, i] += mins[i]
     return new_data
 
+def normalize_data(data, mins, ranges):
+    import numpy as np
+    import copy
+    new_data = copy.deepcopy(data)
+  
+    for i in range(new_data.shape[1]):
+	new_data[:, i] -= mins[i]
+	new_data[:, i] /= (ranges[i]*3.0)
+	#assert np.all(new_data[:, i] >= 0.0) and np.all(new_data[:, i] <= 1.0)
+    return new_data
+def unnormalize_data(data, mins, ranges):
+    import numpy as np
+    import copy
+    new_data = copy.deepcopy(data)
+    for i in range(new_data.shape[1]):	
+	new_data[:, i] *= (ranges[i]*3.0)
+	new_data[:, i] += mins[i]
+    return new_data
+
+
 def load_vc_all_speakers():
     from glob import iglob
     from os import path, popen
     from os.path import exists
     import pickle
-    data = np.zeros((630*3500,24*15))
+    data = np.zeros((630*3500,24*15),dtype=np.float32)
     st=0
     cnt = 0
     if exists('../TIMIT_code/spk_wav/'):
@@ -110,7 +178,8 @@ def load_vc_all_speakers():
 	#    break
     data = data[:st,:]
     return data
-def load_vc(dataset='c2s.npy'):
+##def load_vc(dataset='c2s.npy', num_sentences=200):
+def load_vc(dataset, num_sentences):
     #import sys
     #sys.path.append('../gitlab/voice-conversion/src')
     #import voice_conversion
@@ -122,32 +191,33 @@ def load_vc(dataset='c2s.npy'):
     #y=vcdata['aligned_data2'][:,:24]
     x=numpy.load(f).astype(numpy.float32)
     y=numpy.load(f).astype(numpy.float32)
-    x=numpy.log(x)##
-    y=numpy.log(y)##
-
+    #x=numpy.log(x)##
+    #y=numpy.log(y)##
     f.close()
     num = x.shape[0]
     st_train = 0
-    en_train = int(num * (64.0/100.0)) # 64 train,18 valid, 18 test
-    st_valid = en_train
-    en_valid = en_train+int(num * (18.0/100.0))
-    st_test = en_valid
+    en_train = int(num * (num_sentences/200.0)) # 64 train,18 valid, 18 test
+    #st_valid = en_train
+    #en_valid = en_train+int(num * (18.0/100.0))
+    st_test = num-+int(num * (50.0/200.0))
     en_test = num
-    
-    x_mean = x[st_train:en_train,:].mean(axis=0)
-    y_mean = y[st_train:en_train,:].mean(axis=0)
-    x_std = x[st_train:en_train,:].std(axis=0)
-    y_std = y[st_train:en_train,:].std(axis=0)
-    x -= x_mean
-    y -= y_mean
-    x /= x_std
-    y /= y_std
+    st_valid = en_train
+    en_valid = en_train+int(num * (50.0/200.0))
+    if 0:# not now
+	x_mean = x[st_train:en_train,:].mean(axis=0)
+	y_mean = y[st_train:en_train,:].mean(axis=0)
+	x_std = x[st_train:en_train,:].std(axis=0)
+	y_std = y[st_train:en_train,:].std(axis=0)
+	x -= x_mean
+	y -= y_mean
+	x /= x_std
+	y /= y_std
 
     import theano
-    train_set_x = theano.shared(numpy.asarray(x[st_train:st_train+int((en_train-st_train)*(5.0/64.0)),:],##
+    train_set_x = theano.shared(numpy.asarray(x[st_train:en_train,:],##
                                 dtype=theano.config.floatX),
                                  borrow=True)
-    train_set_y = theano.shared(numpy.asarray(y[st_train:st_train+int((en_train-st_train)*(5.0/64.0)),:],##
+    train_set_y = theano.shared(numpy.asarray(y[st_train:en_train,:],##
                                 dtype=theano.config.floatX),
                                  borrow=True)
     test_set_x = theano.shared(numpy.asarray(x[st_test:en_test,:],
@@ -164,7 +234,48 @@ def load_vc(dataset='c2s.npy'):
                                  borrow=True)
     rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),
             (test_set_x, test_set_y)]
-    return rval, x_mean, y_mean, x_std, y_std
+    return rval
+def load_xy(dataset, num_sentences, mins, ranges):
+    from utils import load_vc
+    print '... loading the data'
+    
+    f=open(dataset,'r')
+    x=np.load(f).astype(np.float32)#[:,24*7:24*7+24]##$
+    y=np.load(f).astype(np.float32)#[:,24*7:24*7+24]##$
+    
+    f.close()
+    
+    x=normalize_data(x, mins, ranges)
+    y=normalize_data(y, mins, ranges)
+
+    num = x.shape[0]
+    st_train = 0
+    en_train = int(num * (num_sentences/200.0))
+    st_test = num-int(num * (50.0/200.0))
+    en_test = num
+    st_valid = st_test-int(num * (50.0/200.0))
+    en_valid = st_test
+    import theano
+    train_set_x = theano.shared(np.asarray(x[st_train:en_train,:],##
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    train_set_y = theano.shared(np.asarray(y[st_train:en_train,:],##
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    test_set_x = theano.shared(np.asarray(x[st_test:en_test,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    test_set_y = theano.shared(np.asarray(y[st_test:en_test,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    valid_set_x = theano.shared(np.asarray(x[st_valid:en_valid,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    valid_set_y = theano.shared(np.asarray(y[st_valid:en_valid,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    return train_set_x, train_set_y, test_set_x, test_set_y, valid_set_x, valid_set_y
+
 def load_mnist_half(dataset):
     ''' Loads the dataset
 
@@ -260,9 +371,7 @@ def load_mnist(dataset):
     :param dataset: the path to the dataset (here MNIST)
     '''
 
-    #############
     # LOAD DATA #
-    #############
 
     # Download the MNIST dataset if it is not present
     data_dir, data_file = os.path.split(dataset)

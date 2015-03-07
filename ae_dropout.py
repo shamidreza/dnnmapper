@@ -250,13 +250,13 @@ class dA(object):
     def get_hidden_values(self, input):
         """ Computes the values of the hidden layer """
         return af(T.dot(input, self.W) + self.b)
-
     def get_reconstructed_input(self, hidden):
         """Computes the reconstructed input given the values of the
         hidden layer
 
         """
         return af(T.dot(hidden, self.W_prime) + self.b_prime)
+        ##return (T.dot(hidden, self.W_prime) + self.b_prime)
 
     def get_cost_updates(self, corruption_level, learning_rate):
         """ This function computes the cost and the updates for one trainng
@@ -268,7 +268,9 @@ class dA(object):
         # note : we sum over the size of a datapoint; if we are using
         #        minibatches, L will be a vector, with one entry per
         #        example in minibatch
-        L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
+        ##L = - T.sum(self.x * T.log(z) + (1 - self.x) * T.log(1 - z), axis=1)
+        L = (z-self.x)**2
+
         # note : L is now a vector, where each element is the
         #        cross-entropy cost of the reconstruction of the
         #        corresponding example of the minibatch. We need to
@@ -319,9 +321,7 @@ def test_dA(learning_rate=0.1, training_epochs=15,
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
     os.chdir(output_folder)
-    ####################################
     # BUILDING THE MODEL NO CORRUPTION #
-    ####################################
 
     rng = numpy.random.RandomState(123)
     theano_rng = RandomStreams(rng.randint(2 ** 30))
@@ -350,9 +350,7 @@ def test_dA(learning_rate=0.1, training_epochs=15,
 
     start_time = time.clock()
 
-    ############
     # TRAINING #
-    ############
 
     # go through training epochs
     for epoch in xrange(training_epochs):
@@ -376,9 +374,7 @@ def test_dA(learning_rate=0.1, training_epochs=15,
                            tile_spacing=(1, 1)))
     image.save('filters_corruption_0.png')
 
-    #####################################
     # BUILDING THE MODEL CORRUPTION 30% #
-    #####################################
 
     rng = numpy.random.RandomState(123)
     theano_rng = RandomStreams(rng.randint(2 ** 30))
@@ -407,9 +403,7 @@ def test_dA(learning_rate=0.1, training_epochs=15,
 
     start_time = time.clock()
 
-    ############
     # TRAINING #
-    ############
 
     # go through training epochs
     for epoch in xrange(training_epochs):
