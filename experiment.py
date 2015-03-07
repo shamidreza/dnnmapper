@@ -903,8 +903,8 @@ def experiment():
         ae_all(ae_name, hidden_layers_sizes=[500,500],               
                corruption_levels=[0.1,0.2],
                pretrain_lr=0.05,
-               batch_size=5,
-               training_epochs=40)
+               batch_size=20,
+               training_epochs=5)
     if 1: # load norm
         f=open('norm.pkl','r')
         mins=pickle.load(f)#[24*7:24*7+24]##$
@@ -919,13 +919,13 @@ def experiment():
         dnn_train(model1_pre_from_siae, ae_name, 'dnn_spk20.pkl',
                   x20, y20, xv20, yv20, xt20, yt20, mins, ranges,
                   hidden_layers_sizes=[x.eval().shape[1], 500, 500, y.eval().shape[1]],               
-                  corruption_levels=[0.2, 0.2, 0.2, 0.2, 0.2],
-                  lr=0.01,
+                  corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
+                  lr=0.005,
                   batch_size=1,
-                  training_epochs=40)
+                  training_epochs=100)
     dnn_train(model1_pre_from_speaker20, 'dnn_spk20.pkl', 'dnn.pkl', x, y, xv, yv, xt, yt, mins, ranges,
                hidden_layers_sizes=[x.eval().shape[1], 500, 500, y.eval().shape[1]],               
-               corruption_levels=[0.2, 0.2, 0.2, 0.2, 0.2],
+               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
                lr=0.01,
                batch_size=1,
                training_epochs=1000)
@@ -934,7 +934,7 @@ def experiment():
     #for model in models_pre:
     model2_pre(x, y, xv, yv, xt, yt, mins, ranges,
                hidden_layers_sizes=[x.eval().shape[1], 100, y.eval().shape[1]],               
-               corruption_levels=[0.2, 0.2, 0.2, 0.2, 0.2],
+               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
                lr=0.01,
                batch_size=1,
                training_epochs=1000)
