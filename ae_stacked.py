@@ -176,7 +176,7 @@ class SdA(object):
             # Construct a denoising autoencoder that shared weights with this
             # layer
             if i ==0:
-                dA_layer = dA(numpy_rng=numpy_rng,
+                dA_layer = dA_linear(numpy_rng=numpy_rng,
                           theano_rng=theano_rng,
                           input=layer_input,
                           n_visible=input_size,

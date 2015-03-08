@@ -183,13 +183,13 @@ class MLP(object):
         n_in, n_out = weight_matrix_sizes[-1]
         dropout_output_layer = DropoutHiddenLayer(
                 rng, next_dropout_layer_input,
-                n_in, n_out, af, 0.0, use_bias)##$make sure if we need dropout here
+                n_in, n_out, None, 0.0, use_bias)##$make sure if we need dropout here
         self.dropout_layers.append(dropout_output_layer)
 
         # Again, reuse paramters in the dropout output.
         output_layer = HiddenLayer(
             rng,
-            next_layer_input, n_in, n_out, af,##$
+            next_layer_input, n_in, n_out, None,##$
             # scale the weight matrix W with (1-p)
             W=dropout_output_layer.W, ##$ * (1 - dropout_rates[-1]),##$
             b=dropout_output_layer.b

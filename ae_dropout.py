@@ -77,29 +77,6 @@ except ImportError:
 
 # start-snippet-1
 class dA(object):
-    """Denoising Auto-Encoder class (dA)
-
-    A denoising autoencoders tries to reconstruct the input from a corrupted
-    version of it by projecting it first in a latent space and reprojecting
-    it afterwards back in the input space. Please refer to Vincent et al.,2008
-    for more details. If x is the input then equation (1) computes a partially
-    destroyed version of x by means of a stochastic mapping q_D. Equation (2)
-    computes the projection of the input into the latent space. Equation (3)
-    computes the reconstruction of the input, while equation (4) computes the
-    reconstruction error.
-
-    .. math::
-
-        \tilde{x} ~ q_D(\tilde{x}|x)                                     (1)
-
-        y = s(W \tilde{x} + b)                                           (2)
-
-        x = s(W' y  + b')                                                (3)
-
-        L(x,z) = -sum_{k=1}^d [x_k \log z_k + (1-x_k) \log( 1-z_k)]      (4)
-
-    """
-
     def __init__(
         self,
         numpy_rng,
@@ -290,30 +267,7 @@ class dA(object):
         return (cost, updates)
 
     
-class dA_linear(object):
-    """Denoising Auto-Encoder class (dA)
-
-    A denoising autoencoders tries to reconstruct the input from a corrupted
-    version of it by projecting it first in a latent space and reprojecting
-    it afterwards back in the input space. Please refer to Vincent et al.,2008
-    for more details. If x is the input then equation (1) computes a partially
-    destroyed version of x by means of a stochastic mapping q_D. Equation (2)
-    computes the projection of the input into the latent space. Equation (3)
-    computes the reconstruction of the input, while equation (4) computes the
-    reconstruction error.
-
-    .. math::
-
-        \tilde{x} ~ q_D(\tilde{x}|x)                                     (1)
-
-        y = s(W \tilde{x} + b)                                           (2)
-
-        x = s(W' y  + b')                                                (3)
-
-        L(x,z) = -sum_{k=1}^d [x_k \log z_k + (1-x_k) \log( 1-z_k)]      (4)
-
-    """
-
+class dA_linear(dA):
     def __init__(
         self,
         numpy_rng,
@@ -431,8 +385,8 @@ class dA_linear(object):
             self.x = input
 
         self.params = [self.W, self.b, self.b_prime]
-        xh=self.get_hidden_values(self.x)
-        self.xh = self.get_reconstructed_input(xh)
+        self.xhid=self.get_hidden_values(self.x)
+        self.xrec = self.get_reconstructed_input(self.xhid)
     # end-snippet-1
 
     def get_corrupted_input(self, input, corruption_level):

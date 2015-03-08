@@ -34,7 +34,7 @@ import theano
 import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 
-from logistic_sgd import load_data
+#from logistic_sgd import load_data
 from utils import tile_raster_images, load_vc
 
 try:
@@ -46,6 +46,9 @@ try:
     from matplotlib import pyplot as pp
 except ImportError:
     print 'matplotlib is could not be imported'
+
+from experiment import CUR_ACIVATION_FUNCTION as af
+
 
 # start-snippet-1
 class dA_joint(object):
@@ -89,52 +92,6 @@ class dA_joint(object):
         bhid2=None,
         bvis2=None
     ):
-        """
-        Initialize the dA class by specifying the number of visible units (the
-        dimension d of the input ), the number of hidden units ( the dimension
-        d' of the latent or hidden space ) and the corruption level. The
-        constructor also receives symbolic variables for the input, weights and
-        bias. Such a symbolic variables are useful when, for example the input
-        is the result of some computations, or when weights are shared between
-        the dA and an MLP layer. When dealing with SdAs this always happens,
-        the dA on layer 2 gets as input the output of the dA on layer 1,
-        and the weights of the dA are used in the second stage of training
-        to construct an MLP.
-
-        :type numpy_rng: numpy.random.RandomState
-        :param numpy_rng: number random generator used to generate weights
-
-        :type theano_rng: theano.tensor.shared_randomstreams.RandomStreams
-        :param theano_rng: Theano random generator; if None is given one is
-                     generated based on a seed drawn from `rng`
-
-        :type input: theano.tensor.TensorType
-        :param input: a symbolic description of the input or None for
-                      standalone dA
-
-        :type n_visible: int
-        :param n_visible: number of visible units
-
-        :type n_hidden: int
-        :param n_hidden:  number of hidden units
-
-        :type W: theano.tensor.TensorType
-        :param W: Theano variable pointing to a set of weights that should be
-                  shared belong the dA and another architecture; if dA should
-                  be standalone set this to None
-
-        :type bhid: theano.tensor.TensorType
-        :param bhid: Theano variable pointing to a set of biases values (for
-                     hidden units) that should be shared belong dA and another
-                     architecture; if dA should be standalone set this to None
-
-        :type bvis: theano.tensor.TensorType
-        :param bvis: Theano variable pointing to a set of biases values (for
-                     visible units) that should be shared belong dA and another
-                     architecture; if dA should be standalone set this to None
-
-
-        """
         self.n_visible1 = n_visible1
         self.n_visible2 = n_visible2
 
@@ -254,34 +211,13 @@ class dA_joint(object):
                        self.W2, self.b2, self.b2_prime
         ]
         # end-snippet-1
-        self.output1 = T.tanh(T.dot(self.x1, self.W1) + self.b1)
-        self.output2 = T.tanh(T.dot(self.x2, self.W2) + self.b2)
-        self.rec1 = T.tanh(T.dot(self.output1, self.W1_prime) + self.b1_prime)
-        self.rec2 = T.tanh(T.dot(self.output2, self.W2_prime) + self.b2_prime)
-        self.reg = T.tanh(T.dot(self.output1, self.W2_prime) + self.b2_prime)
+        self.output1 = af(T.dot(self.x1, self.W1) + self.b1)
+        self.output2 = af(T.dot(self.x2, self.W2) + self.b2)
+        self.rec1 = (T.dot(self.output1, self.W1_prime) + self.b1_prime)
+        self.rec2 = (T.dot(self.output2, self.W2_prime) + self.b2_prime)
+        self.reg = (T.dot(self.output1, self.W2_prime) + self.b2_prime)
         self.cor_reg = theano.shared(numpy.float32(1.0),name='reg')
     def get_corrupted_input(self, input1, input2, corruption_level):
-        """This function keeps ``1-corruption_level`` entries of the inputs the
-        same and zero-out randomly selected subset of size ``coruption_level``
-        Note : first argument of theano.rng.binomial is the shape(size) of
-               random numbers that it should produce
-               second argument is the number of trials
-               third argument is the probability of success of any trial
-
-                this will produce an array of 0s and 1s where 1 has a
-                probability of 1 - ``corruption_level`` and 0 with
-                ``corruption_level``
-
-                The binomial function return int64 data type by
-                default.  int64 multiplicated by the input
-                type(floatX) always return float64.  To keep all data
-                in floatX when floatX is float32, we set the dtype of
-                the binomial to floatX. As in our case the value of
-                the binomial is always 0 or 1, this don't change the
-                result. This is needed to allow the gpu to work
-                correctly as it only support float32 for now.
-
-        """
         a=self.theano_rng.binomial(size=input1.shape, n=1,
                                         p=1 - corruption_level,
                                         dtype=theano.config.floatX) * input1
@@ -292,17 +228,17 @@ class dA_joint(object):
 
     def get_hidden_values(self, input1, input2):
         """ Computes the values of the hidden layer """
-        return T.tanh(T.dot(input1, self.W1) + self.b1), T.tanh(T.dot(input2, self.W2) + self.b2)
-    
-    
+        return af(T.dot(input1, self.W1) + self.b1), af(T.dot(input2, self.W2) + self.b2)
 
     def get_reconstructed_input(self, hidden1, hidden2):
         """Computes the reconstructed input given the values of the
         hidden layer
 
         """
-        a = T.tanh(T.dot(hidden1, self.W1_prime) + self.b1_prime)
-        b = T.tanh(T.dot(hidden2, self.W2_prime) + self.b2_prime)
+        #a = af(T.dot(hidden1, self.W1_prime) + self.b1_prime)
+        #b = af(T.dot(hidden2, self.W2_prime) + self.b2_prime)
+        a = (T.dot(hidden1, self.W1_prime) + self.b1_prime)
+        b = (T.dot(hidden2, self.W2_prime) + self.b2_prime)
         return a, b
 
     def get_cost_updates(self, corruption_level, learning_rate):
@@ -321,11 +257,11 @@ class dA_joint(object):
         L_X1_x2 = - T.sum(y1 * T.log(y2) + (1 - y1) * T.log(1 - y2), axis=1)
         L_X2_x1 = - T.sum(y2 * T.log(y1) + (1 - y2) * T.log(1 - y1), axis=1)
         #L_X1_x2 = T.mean(T.mean((y1-y2)**2,1))
-        L_x1 = T.mean((z1-self.x1)**2) #+ (1 - self.x1) * T.log(1 - z1), axis=1)
-        L_x2 = T.mean((z2-self.x2)**2)
-        L_X1_x2 = T.mean((y1-y2)**2)
+        L_x1 = ((z1-self.x1)**2) #+ (1 - self.x1) * T.log(1 - z1), axis=1)
+        L_x2 = ((z2-self.x2)**2)
+        L_X1_x2 = ((y1-y2)**2)
         ##cost = T.mean(L_x1) + T.mean(L_x2) + self.cor_reg*T.mean(L_X1_x2)+0.001*self.L1+001*self.L2_sqr# + 0.2*T.mean(L_X2_x1)
-        cost = T.mean(L_x1) + T.mean(L_x2) + T.mean(L_X1_x2) #+ .001*self.L2_sqr# + 0.2*T.mean(L_X2_x1)
+        cost = T.mean(L_x1) + T.mean(L_x2) + 4.0*T.mean(L_X1_x2) #+ .001*self.L2_sqr# + 0.2*T.mean(L_X2_x1)
 
         # compute the gradients of the cost of the `dA` with respect
         # to its parameters
