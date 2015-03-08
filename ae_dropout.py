@@ -217,8 +217,8 @@ class dA(object):
             self.x = input
 
         self.params = [self.W, self.b, self.b_prime]
-        xh=self.get_hidden_values(self.x)
-        self.xh = self.get_reconstructed_input(xh)
+        self.xhid=self.get_hidden_values(self.x)
+        self.xrec = self.get_reconstructed_input(self.xhid)
     # end-snippet-1
 
     def get_corrupted_input(self, input, corruption_level):

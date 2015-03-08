@@ -64,7 +64,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
     reconstruct = theano.function(
                 inputs=[                   
                 ],
-                outputs=sda.dA_layers[0].xh,
+                outputs=sda.dA_layers[0].xrec,
                 givens={
                     sda.dA_layers[0].x: test_set
                 }
@@ -617,14 +617,14 @@ def model1_pre(x, y, xv, yv, xt, yt, mins, ranges,
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
-def model1_pre_from_siae(inp_file):
+def model2_pre_from_siae(inp_file):
     f=open(inp_file,'r')
     sda=pickle.load(f)
     f.close()
     hidden_layers_sizes = [sda.dA_layers[0].n_visible]
     for i in range(len(sda.dA_layers)):
         hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
-    for i in range(len(sda.dA_layers)-2, -1, -1):
+    for i in range(len(sda.dA_layers)-1, -1, -1):
         hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
     hidden_layers_sizes.append(sda.dA_layers[0].n_visible)
     random_seed = 1234
@@ -646,13 +646,14 @@ def model1_pre_from_siae(inp_file):
         pretrained.layers[len(sda.dA_layers)+i].b = sda.dA_layers[len(sda.dA_layers)-i-1].b_prime
     return pretrained
 
-def model1_pre_from_speaker20(inp_file):
+def model2_pre_from_speaker20(inp_file):
     f=open(inp_file,'r')
     pretrained=pickle.load(f)
     return pretrained
 
 def dnn_train(pretrain_func, inp_file, out_file, x, y, xv, yv, xt, yt, mins, ranges,
                hidden_layers_sizes=None,
+               middle_layers_sizes=None,
                corruption_levels=None,
                lr=None,
                batch_size=None,
@@ -701,11 +702,11 @@ def dnn_train(pretrain_func, inp_file, out_file, x, y, xv, yv, xt, yt, mins, ran
     # construct the MLP class
     from dnn_dropout import MLP
 
-    pretrained = pretrain_func(inp_file)
+    pretrained = pretrain_func(inp_file, middle_layers_sizes, train_set_x, train_set_y)
     classifier = MLP(rng=rng, input=x,
                      layer_sizes=hidden_layers_sizes,
                      dropout_rates=corruption_levels,
-                     activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                     activations=[CUR_ACIVATION_FUNCTION]*(len(hidden_layers_sizes)+2),
                      use_bias=True,
                      pretrained=pretrained)
     #from mlp import MLP
@@ -737,10 +738,10 @@ def dnn_train(pretrain_func, inp_file, out_file, x, y, xv, yv, xt, yt, mins, ran
                 x: valid_set_x[index * batch_size:(index + 1) * batch_size],
                 y: valid_set_y[index * batch_size:(index + 1) * batch_size]})
     test_fprop = theano.function(inputs=[],
-            outputs=classifier.layers[-1].output,
-            givens={
-                x: test_set_x
-                })
+                                 outputs=classifier.layers[-1].output,
+                                 givens={
+                                     x: test_set_x
+                                     })
     #theano.printing.pydotprint(validate_model, outfile="validate_file.png",
     #        var_with_name_simple=True)
 
@@ -885,6 +886,316 @@ def dnn_train(pretrain_func, inp_file, out_file, x, y, xv, yv, xt, yt, mins, ran
             
 
 
+def model4_pre_from_siae(inp_file, midlayer, train_x, train_y): # 3.(A, Ba, Bb_backprop, C_backprop,SLT14),MCEP15
+    f=open(inp_file,'r')
+    sda=pickle.load(f)
+    f.close()
+    hidden_layers_sizes = [sda.dA_layers[0].n_visible]
+    for i in range(len(sda.dA_layers)):
+        hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    for i in range(len(midlayer)):
+        hidden_layers_sizes.append(midlayer[i])
+    for i in range(len(sda.dA_layers)-1, -1, -1):
+        hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    hidden_layers_sizes.append(sda.dA_layers[0].n_visible)
+    random_seed = 1234
+    rng = np.random.RandomState(random_seed)
+    x = T.matrix('x')  # the data is presented as rasterized images
+    from dnn_dropout import MLP
+
+    pretrained = MLP(rng=rng, input=x,
+                     layer_sizes=hidden_layers_sizes,
+                     dropout_rates=[0.0]*len(hidden_layers_sizes),
+                     activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                     use_bias=True
+                     )
+    for i in range(len(sda.dA_layers)):
+        pretrained.layers[i].W = sda.dA_layers[i].W
+        pretrained.layers[i].b = sda.dA_layers[i].b
+    for i in range(len(sda.dA_layers)):
+        pretrained.layers[len(sda.dA_layers)+len(midlayer)+i+1].W = sda.dA_layers[len(sda.dA_layers)-i-1].W_prime
+        pretrained.layers[len(sda.dA_layers)+len(midlayer)+i+1].b = sda.dA_layers[len(sda.dA_layers)-i-1].b_prime
+    middle_layer_size = [sda.dA_layers[-1].n_hidden]
+    for i in range(len(midlayer)):
+        middle_layer_size.append(midlayer[i])
+    middle_layer_size.append(sda.dA_layers[-1].n_hidden)
+    xhid= T.matrix('x')
+    yhid= T.matrix('x')
+
+    inbetween = MLP(rng=rng, input=xhid,
+                     layer_sizes=middle_layer_size,
+                     dropout_rates=[0.0]*len(middle_layer_size),
+                     activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                     use_bias=True,
+                     pretrained=None)
+    
+    encodex = theano.function(
+                inputs=[],
+                outputs=sda.dA_layers[-1].xhid,
+                givens={
+                    sda.dA_layers[0].x: train_x
+                }
+            )
+    encodey = theano.function(
+                inputs=[],
+                outputs=sda.dA_layers[-1].xhid,
+                givens={
+                    sda.dA_layers[0].x: train_y
+                }
+            )
+    xhid_value = encodex()
+    yhid_value = encodey()
+    xhid_value = theano.shared(xhid_value)
+    yhid_value = theano.shared(yhid_value)
+
+    cost=inbetween.mse(yhid)
+    gparams = []
+    for param in inbetween.params:
+        # Use the right cost function here to train with or without dropout.
+        gparam = T.grad(cost, param)
+        gparams.append(gparam)
+        
+    updates = [
+            (param, param - 0.1 * gparam)
+            for param, gparam in zip(inbetween.params, gparams)
+        ]
+
+    train_model = theano.function(inputs=[], outputs=cost,
+                                  updates=updates,
+                                  givens={
+                                      xhid: xhid_value,
+                                      yhid: yhid_value})
+    data_len = train_x.eval().shape[0]
+    batch_size = 10
+    index = T.lscalar()
+    train_model = theano.function(inputs=[index], outputs=cost,
+                                  updates=updates,
+                                  givens={
+                                      xhid: xhid_value[index * batch_size:(index + 1) * batch_size],
+                                      yhid: yhid_value[index * batch_size:(index + 1) * batch_size]})
+    for i in xrange(100):##$
+        cs = 0.0
+        for j in xrange(data_len/batch_size):
+            cs += train_model(j)
+        print i, cs
+    for i in range(len(midlayer)+1):
+        pretrained.layers[len(sda.dA_layers)+i].W = inbetween.layers[i].W
+        pretrained.layers[len(sda.dA_layers)+i].b = inbetween.layers[i].b
+    return pretrained
+
+def model4_pre_from_speaker20(inp_file, midlayer=None, train_x=None, train_y=None): # 3.(A, Ba, Bb_backprop, C_backprop,SLT14),MCEP15
+    f=open(inp_file,'r')
+    pretrained=pickle.load(f)
+    return pretrained
+
+def model3_pre_from_siae(inp_file, midlayer, train_x, train_y): # 2.(A, Ba, Bb_backprop, C_backprop),MCEP15
+    f=open(inp_file,'r')
+    sda=pickle.load(f)
+    f.close()
+    hidden_layers_sizes = [sda.dA_layers[0].n_visible]
+    for i in range(len(sda.dA_layers)):
+        hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    for i in range(len(midlayer)):
+        hidden_layers_sizes.append(midlayer[i])
+    for i in range(len(sda.dA_layers)-1, -1, -1):
+        hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    hidden_layers_sizes.append(sda.dA_layers[0].n_visible)
+    random_seed = 1234
+    rng = np.random.RandomState(random_seed)
+    x = T.matrix('x')  # the data is presented as rasterized images
+    from dnn_dropout import MLP
+
+    pretrained = MLP(rng=rng, input=x,
+                     layer_sizes=hidden_layers_sizes,
+                     dropout_rates=[0.0]*len(hidden_layers_sizes),
+                     activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                     use_bias=True
+                     )
+    for i in range(len(sda.dA_layers)):
+        pretrained.layers[i].W = sda.dA_layers[i].W
+        pretrained.layers[i].b = sda.dA_layers[i].b
+    for i in range(len(sda.dA_layers)):
+        pretrained.layers[len(sda.dA_layers)+len(midlayer)+i+1].W = sda.dA_layers[len(sda.dA_layers)-i-1].W_prime
+        pretrained.layers[len(sda.dA_layers)+len(midlayer)+i+1].b = sda.dA_layers[len(sda.dA_layers)-i-1].b_prime
+    middle_layer_size = [sda.dA_layers[-1].n_hidden]
+    for i in range(len(midlayer)):
+        middle_layer_size.append(midlayer[i])
+    middle_layer_size.append(sda.dA_layers[-1].n_hidden)
+    xhid= T.matrix('x')
+    yhid= T.matrix('x')
+    from dnn_dropout import HiddenLayer
+    inbetween = HiddenLayer(rng=rng, input=xhid,
+                     n_in=sda.dA_layers[-1].n_hidden,
+                     n_out=sda.dA_layers[-1].n_hidden,
+                     activation=CUR_ACIVATION_FUNCTION,
+                     use_bias=True
+                     )
+    
+    encodex = theano.function(
+                inputs=[],
+                outputs=sda.dA_layers[-1].xhid,
+                givens={
+                    sda.dA_layers[0].x: train_x
+                }
+            )
+    encodey = theano.function(
+                inputs=[],
+                outputs=sda.dA_layers[-1].xhid,
+                givens={
+                    sda.dA_layers[0].x: train_y
+                }
+            )
+    xhid_value = encodex()
+    yhid_value = encodey()
+    xhid_value = theano.shared(xhid_value)
+    yhid_value = theano.shared(yhid_value)
+
+    cost=inbetween.mse(yhid)
+    gparams = []
+    for param in inbetween.params:
+        # Use the right cost function here to train with or without dropout.
+        gparam = T.grad(cost, param)
+        gparams.append(gparam)
+        
+    updates = [
+            (param, param - 0.1 * gparam)
+            for param, gparam in zip(inbetween.params, gparams)
+        ]
+
+    train_model = theano.function(inputs=[], outputs=cost,
+                                  updates=updates,
+                                  givens={
+                                      xhid: xhid_value,
+                                      yhid: yhid_value})
+    data_len = train_x.eval().shape[0]
+    batch_size = 10
+    index = T.lscalar()
+    train_model = theano.function(inputs=[index], outputs=cost,
+                                  updates=updates,
+                                  givens={
+                                      xhid: xhid_value[index * batch_size:(index + 1) * batch_size],
+                                      yhid: yhid_value[index * batch_size:(index + 1) * batch_size]})
+    for i in xrange(100):##$
+        cs = 0.0
+        for j in xrange(data_len/batch_size):
+            cs += train_model(j)
+        print i, cs
+    for i in range(len(midlayer)+1):
+        pretrained.layers[len(sda.dA_layers)+i].W = inbetween.layers[i].W
+        pretrained.layers[len(sda.dA_layers)+i].b = inbetween.layers[i].b
+    return pretrained
+
+def model3_pre_from_speaker20(inp_file, midlayer=None, train_x=None, train_y=None): # 2.(A, Ba, Bb_backprop, C_backprop),MCEP15
+    f=open(inp_file,'r')
+    pretrained=pickle.load(f)
+    return pretrained
+
+
+
+
+def model4_pre_from_siae(inp_file, midlayer, train_x, train_y): # 3.(A, Ba, Bb_backprop, C_backprop,SLT14),MCEP15
+    f=open(inp_file,'r')
+    sda=pickle.load(f)
+    f.close()
+    hidden_layers_sizes = [sda.dA_layers[0].n_visible]
+    for i in range(len(sda.dA_layers)):
+        hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    for i in range(len(midlayer)):
+        hidden_layers_sizes.append(midlayer[i])
+    for i in range(len(sda.dA_layers)-1, -1, -1):
+        hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    hidden_layers_sizes.append(sda.dA_layers[0].n_visible)
+    random_seed = 1234
+    rng = np.random.RandomState(random_seed)
+    x = T.matrix('x')  # the data is presented as rasterized images
+    from dnn_dropout import MLP
+
+    pretrained = MLP(rng=rng, input=x,
+                     layer_sizes=hidden_layers_sizes,
+                     dropout_rates=[0.0]*len(hidden_layers_sizes),
+                     activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                     use_bias=True
+                     )
+    for i in range(len(sda.dA_layers)):
+        pretrained.layers[i].W = sda.dA_layers[i].W
+        pretrained.layers[i].b = sda.dA_layers[i].b
+    for i in range(len(sda.dA_layers)):
+        pretrained.layers[len(sda.dA_layers)+len(midlayer)+i+1].W = sda.dA_layers[len(sda.dA_layers)-i-1].W_prime
+        pretrained.layers[len(sda.dA_layers)+len(midlayer)+i+1].b = sda.dA_layers[len(sda.dA_layers)-i-1].b_prime
+    middle_layer_size = [sda.dA_layers[-1].n_hidden]
+    for i in range(len(midlayer)):
+        middle_layer_size.append(midlayer[i])
+    middle_layer_size.append(sda.dA_layers[-1].n_hidden)
+    xhid= T.matrix('x')
+    yhid= T.matrix('x')
+
+    inbetween = MLP(rng=rng, input=xhid,
+                     layer_sizes=middle_layer_size,
+                     dropout_rates=[0.0]*len(middle_layer_size),
+                     activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                     use_bias=True,
+                     pretrained=None)
+    
+    encodex = theano.function(
+                inputs=[],
+                outputs=sda.dA_layers[-1].xhid,
+                givens={
+                    sda.dA_layers[0].x: train_x
+                }
+            )
+    encodey = theano.function(
+                inputs=[],
+                outputs=sda.dA_layers[-1].xhid,
+                givens={
+                    sda.dA_layers[0].x: train_y
+                }
+            )
+    xhid_value = encodex()
+    yhid_value = encodey()
+    xhid_value = theano.shared(xhid_value)
+    yhid_value = theano.shared(yhid_value)
+
+    cost=inbetween.mse(yhid)
+    gparams = []
+    for param in inbetween.params:
+        # Use the right cost function here to train with or without dropout.
+        gparam = T.grad(cost, param)
+        gparams.append(gparam)
+        
+    updates = [
+            (param, param - 0.1 * gparam)
+            for param, gparam in zip(inbetween.params, gparams)
+        ]
+
+    train_model = theano.function(inputs=[], outputs=cost,
+                                  updates=updates,
+                                  givens={
+                                      xhid: xhid_value,
+                                      yhid: yhid_value})
+    data_len = train_x.eval().shape[0]
+    batch_size = 10
+    index = T.lscalar()
+    train_model = theano.function(inputs=[index], outputs=cost,
+                                  updates=updates,
+                                  givens={
+                                      xhid: xhid_value[index * batch_size:(index + 1) * batch_size],
+                                      yhid: yhid_value[index * batch_size:(index + 1) * batch_size]})
+    for i in xrange(100):##$
+        cs = 0.0
+        for j in xrange(data_len/batch_size):
+            cs += train_model(j)
+        print i, cs
+    for i in range(len(midlayer)+1):
+        pretrained.layers[len(sda.dA_layers)+i].W = inbetween.layers[i].W
+        pretrained.layers[len(sda.dA_layers)+i].b = inbetween.layers[i].b
+    return pretrained
+
+def model4_pre_from_speaker20(inp_file, midlayer=None, train_x=None, train_y=None): # 3.(A, Ba, Bb_backprop, C_backprop,SLT14),MCEP15
+    f=open(inp_file,'r')
+    pretrained=pickle.load(f)
+    return pretrained
+
+
 def model3_pre(): # 2.(A, Ba, Bb_backprop, C_backprop),MCEP15
     pass
 
@@ -898,9 +1209,9 @@ def model6_pre(): # 1,(A, Bb_joint, Bb_backprop, C_joint, C_backprop),MCEP
     pass
 
 def experiment():
-    ae_name = 'ae_1000_1000.pkl'
+    ae_name = 'ae_1000.pkl'
     if 1: # train all TIMIT AE
-        ae_all(ae_name, hidden_layers_sizes=[1000,1000],               
+        ae_all(ae_name, hidden_layers_sizes=[1000],               
                corruption_levels=[0.1,0.2],
                pretrain_lr=0.1,
                batch_size=20,
@@ -916,18 +1227,20 @@ def experiment():
         x, y, xv, yv, xt, yt = load_xy('clb2slt.npy', num_sentences=100, mins=mins, ranges=ranges)
     
     if 1:
-        dnn_train(model1_pre_from_siae, ae_name, 'dnn_spk20.pkl',
+        dnn_train(model3_pre_from_siae, ae_name, 'dnn3_spk20.pkl',
                   x20, y20, xv20, yv20, xt20, yt20, mins, ranges,
-                  hidden_layers_sizes=[x.eval().shape[1], 1000, 1000, y.eval().shape[1]],               
-                  corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
-                  lr=0.005,
-                  batch_size=1,
+                  hidden_layers_sizes=[x.eval().shape[1], 1000, 100, 1000, y.eval().shape[1]],
+                  middle_layers_sizes=[100],
+                  corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                  lr=0.1,
+                  batch_size=10,
                   training_epochs=100)
-    dnn_train(model1_pre_from_speaker20, 'dnn_spk20.pkl', 'dnn.pkl', x, y, xv, yv, xt, yt, mins, ranges,
-               hidden_layers_sizes=[x.eval().shape[1], 1000, 1000, y.eval().shape[1]],               
-               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0],
-               lr=0.01,
-               batch_size=1,
+    dnn_train(model3_pre_from_speaker20, 'dnn3_spk20.pkl', 'dnn3.pkl', x, y, xv, yv, xt, yt, mins, ranges,
+              hidden_layers_sizes=[x.eval().shape[1], 1000, 100, 1000, y.eval().shape[1]],
+              middle_layers_sizes=[100],
+               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+               lr=0.1,
+               batch_size=10,
                training_epochs=1000)
   
     
