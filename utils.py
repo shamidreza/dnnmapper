@@ -163,9 +163,9 @@ def load_vc_all_speakers():
     st=0
     cnt = 0
     if exists('../TIMIT_code/spk_wav/'):
-	iter_directory = iglob('../TIMIT_code/spk_wav/*.pkl')
+	iter_directory = iglob('../TIMIT_code/spk_wav/M*.pkl')
     else:
-	iter_directory = iglob('../gitlab/voice-conversion/src/spk_wav/*.pkl')
+	iter_directory = iglob('../gitlab/voice-conversion/src/spk_wav/M*.pkl')
     for fid in iter_directory:
 	print'read_TIMIT_append_all: reaing file '+ fid
 	f=open(fid, 'r')

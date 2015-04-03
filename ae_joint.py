@@ -261,7 +261,7 @@ class dA_joint(object):
         L_x2 = ((z2-self.x2)**2)
         L_X1_x2 = ((y1-y2)**2)
         ##cost = T.mean(L_x1) + T.mean(L_x2) + self.cor_reg*T.mean(L_X1_x2)+0.001*self.L1+001*self.L2_sqr# + 0.2*T.mean(L_X2_x1)
-        cost = T.mean(L_x1) + T.mean(L_x2) + 4.0*T.mean(L_X1_x2) #+ .001*self.L2_sqr# + 0.2*T.mean(L_X2_x1)
+        cost = T.mean(L_x1) + T.mean(L_x2) + 1.0*T.mean(L_X1_x2) #+ .001*self.L2_sqr# + 0.2*T.mean(L_X2_x1)
 
         # compute the gradients of the cost of the `dA` with respect
         # to its parameters

@@ -15,6 +15,10 @@
     along with dnnmapper.  If not, see <http://www.gnu.org/licenses/>.
 """
 from utils import *
+vcpath = '../gitlab/voice-conversion/src/'
+import sys
+sys.path.append(vcpath)
+from vc import *
 
 CUR_ACIVATION_FUNCTION = Tanh
 
@@ -29,7 +33,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
     print '... normalizing the data'
     mins, ranges = compute_normalization_factors(data)
     import pickle
-    f=open('norm.pkl','w+')
+    f=open('norm_male.pkl','w+')
     pickle.dump(mins, f)#[24*7:24*7+24]##$
     pickle.dump(ranges, f)#[24*7:24*7+24]##$
     f.flush()
@@ -87,13 +91,13 @@ def ae_all(out_file, hidden_layers_sizes=None,
             lr *= 0.99
             if lr < 0.01:
                 lr = 0.01
-    import pickle
-    f=open(out_file,'w+')
-    pickle.dump(sda, f)
-    pickle.dump(mins, f)
-    pickle.dump(ranges, f)
-    f.flush()
-    f.close()
+            import pickle
+            f=open(out_file,'w+')
+            pickle.dump(sda, f)
+            pickle.dump(mins, f)
+            pickle.dump(ranges, f)
+            f.flush()
+            f.close()
     print 'Pre-training layer %i, epoch %d, cost ' % (i, epoch),
     print np.mean(c)
             
@@ -158,7 +162,7 @@ def model2_pre(x, y, xv, yv, xt, yt, mins, ranges,
     if 0: # no pretraining
         pretrained=None
     elif 1: # ae pretraining + middle layer
-        f=open('ae_100.pkl','r')
+        f=open('ae_100_linear.pkl','r')
         sda=pickle.load(f)
         mins=pickle.load(f)
         ranges=pickle.load(f)
@@ -366,19 +370,27 @@ def model0_pre(x, y, xv, yv, xt, yt, mins, ranges,
     import sys
     sys.path.append('../gitlab/pysig/src/python/')
     from pysig.learning.mapping import JDGMM
-    model=JDGMM(Q=32,regularizer=0.0001)
-    x=x.eval().astype(np.float64)
-    y=y.eval().astype(np.float64)
-    xt=xt.eval().astype(np.float64)
-    yt=yt.eval().astype(np.float64)
+    model=JDGMM(Q=64,regularizer=0.1)
+    x=x.eval().astype(np.float64)[:,7*24:7*24+24]
+    y=y.eval().astype(np.float64)[:,7*24:7*24+24]
+    xt=xt.eval().astype(np.float64)[:,7*24:7*24+24]
+    yt=yt.eval().astype(np.float64)[:,7*24:7*24+24]
     model.train(x, y)
     YH=model.map(xt)
+    mins = mins[7*24:7*24+24]
+    ranges = ranges[7*24:7*24+24]
+
     YH = unnormalize_data(YH, mins, ranges)
     X2 = unnormalize_data(yt, mins, ranges)
     X1 = unnormalize_data(xt, mins, ranges)
     print 'Regression ', melCD(X2,YH)#np.mean(np.mean((YH-X2)**2,1))
     print 'Baseline! ', melCD(X1,X2)#np.mean(np.mean((X1-X2)**2,1))
-    
+    import pickle
+    f=open('jdgmm100_male.pkl','w+')
+    pickle.dump(model, f)
+    f.flush()
+    f.close()
+    pass
 
 def model1_pre(x, y, xv, yv, xt, yt, mins, ranges,
                hidden_layers_sizes=None,
@@ -429,7 +441,7 @@ def model1_pre(x, y, xv, yv, xt, yt, mins, ranges,
 
     # construct the MLP class
         
-    if 0: # no pretraining
+    if 1: # no pretraining
         pretrained=None
     elif 0: # ae pretraining + middle layer
         f = open('test.dnn.pkl','r')
@@ -646,7 +658,7 @@ def model2_pre_from_siae(inp_file):
         pretrained.layers[len(sda.dA_layers)+i].b = sda.dA_layers[len(sda.dA_layers)-i-1].b_prime
     return pretrained
 
-def model2_pre_from_speaker20(inp_file):
+def model2_pre_from_speaker20(inp_file, midlayer=None, train_x=None, train_y=None):
     f=open(inp_file,'r')
     pretrained=pickle.load(f)
     return pretrained
@@ -1206,7 +1218,7 @@ def model5_pre_from_siae(inp_file, midlayer, train_x, train_y): # 1,(A, Bb_joint
 
     import time
     start_time = time.clock()
-    f=open('norm.pkl','r')
+    f=open('norm_male.pkl','r')
     mins=pickle.load(f)#[24*7:24*7+24]##$
     ranges=pickle.load(f)#[24*7:24*7+24]##$
     f.close()
@@ -1246,7 +1258,10 @@ def model5_pre_from_siae(inp_file, midlayer, train_x, train_y): # 1,(A, Bb_joint
         print 'Training epoch', epoch
         print 'Reconstruction', melCD(X1H[:,24*7:24*7+24], X1[:,24*7:24*7+24]), melCD(X2H[:,24*7:24*7+24], X2[:,24*7:24*7+24])
         print 'Regression', melCD(X2MAP[:,24*7:24*7+24], X2[:,24*7:24*7+24])
-        
+    f=open(inp_file.split('.')[0]+'.jda.pkl', 'w+')
+    pickle.dump(da,f)
+    f.flush()
+    f.close()
     hidden_layers_sizes = [sda.dA_layers[0].n_visible]
     for i in range(len(sda.dA_layers)):
         hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
@@ -1274,7 +1289,181 @@ def model5_pre_from_siae(inp_file, midlayer, train_x, train_y): # 1,(A, Bb_joint
 
 def model5_pre_from_speaker20(inp_file, midlayer=None, train_x=None, train_y=None): # 1,(A, Bb_joint, Bb_backprop, C_joint, C_backprop),MCEP15
     f=open(inp_file,'r')
-    pretrained=pickle.load(f)
+    jda=pickle.load(f)
+    f.close()
+    x1 = T.matrix('x1')  # the data is presented as rasterized images
+    x2 = T.matrix('x2')  # the data is presented as rasterized images
+    cor_reg = T.scalar('cor_reg')
+    rng = np.random.RandomState(123)
+    from theano.tensor.shared_randomstreams import RandomStreams
+    batch_size = 10
+
+    theano_rng = RandomStreams(rng.randint(2 ** 30))
+    from ae_joint import dA_joint
+    da = dA_joint(
+        numpy_rng=rng,
+        theano_rng=theano_rng,
+        input1=x1,
+        input2=x2,
+        cor_reg=0.2,
+        n_visible1=24*15,
+        n_visible2=24*15,
+        n_hidden=jda.n_hidden,
+        W1=theano.shared(jda.W1.eval()),
+        bhid1=theano.shared(jda.b1.eval()),
+        bvis1=theano.shared(jda.b1_prime.eval()),
+        W2=theano.shared(jda.W2.eval()),
+        bhid2=theano.shared(jda.b2.eval()),
+        bvis2=theano.shared(jda.b2_prime.eval())
+    )
+    
+    cost, updates = da.get_cost_updates(
+        corruption_level=0.0,
+        learning_rate=0.01
+    )
+    index = T.lscalar()    # index to a [mini]batch
+    cor_reg_val = np.float32(1.0)
+    train_da = theano.function(
+        [index],
+        cost,
+        updates=updates,
+        givens={
+            x1: train_x[index * batch_size: (index + 1) * batch_size],
+            x2: train_y[index * batch_size: (index + 1) * batch_size]
+        }
+    )
+    fprop_x1 = theano.function(
+               [],
+               outputs=da.output1,
+               givens={
+                   x1: train_x
+               },
+               name='fprop_x1'
+    )
+    fprop_x2 = theano.function(
+               [],
+               outputs=da.output2,
+               givens={
+                   x2: train_y
+               },
+               name='fprop_x2'
+    )
+    fprop_x1t = theano.function(
+               [],
+               outputs=da.output1,
+               givens={
+                   x1: train_x
+               },
+               name='fprop_x1'
+    )
+    fprop_x2t = theano.function(
+               [],
+               outputs=da.output2,
+               givens={
+                   x2: train_y
+               },
+               name='fprop_x2'
+    )
+    rec_x1 = theano.function(
+               [],
+               outputs=da.rec1,
+               givens={
+                   x1: train_x
+               },
+               name='rec_x1'
+    )
+    rec_x2 = theano.function(
+               [],
+               outputs=da.rec2,
+               givens={
+                   x2: train_y
+               },
+               name='rec_x2'
+    )
+    fprop_x1_to_x2 = theano.function(
+               [],
+               outputs=da.reg,
+               givens={
+                   x1: train_x
+               },
+               name='fprop_x12x2'
+    )
+    
+    updates_reg = [
+            (da.cor_reg, da.cor_reg+theano.shared(np.float32(0.1)))
+    ]
+    update_reg = theano.function(
+        [],
+        updates=updates_reg
+    )
+    print 'initialize functions ended'
+
+    import time
+    start_time = time.clock()
+    f=open('norm_male.pkl','r')
+    mins=pickle.load(f)#[24*7:24*7+24]##$
+    ranges=pickle.load(f)#[24*7:24*7+24]##$
+    f.close()
+    ############
+    # TRAINING #
+    ############
+    print 'training started'
+    X1=unnormalize_data(train_x.eval(), mins, ranges)   
+    X2=unnormalize_data(train_y.eval(), mins, ranges)   
+    n_train_batches = train_x.get_value(borrow=True).shape[0] / batch_size
+
+    # go through training epochs
+    for epoch in xrange(10):
+        # go through trainng set
+        c = []
+        for batch_index in xrange(n_train_batches):
+            c.append(train_da(batch_index))
+        
+       
+        update_reg()
+        
+        X1H=rec_x1()
+        X2H=rec_x2()
+         
+
+        #H1=fprop_x1()
+        #H2=fprop_x2()
+        
+        X2MAP = fprop_x1_to_x2()
+        #X2MAP=np.tanh(H1.dot(log_reg.W.eval())+log_reg.b.eval())
+        #X2MAP=(X2MAP.dot(da.W2_prime.eval())+da.b2_prime.eval())
+
+        X1H=unnormalize_data(X1H, mins, ranges)   
+        X2H=unnormalize_data(X2H, mins, ranges) 
+        X2MAP=unnormalize_data(X2MAP, mins, ranges) 
+
+        print 'Training epoch', epoch
+        print 'Reconstruction', melCD(X1H[:,24*7:24*7+24], X1[:,24*7:24*7+24]), melCD(X2H[:,24*7:24*7+24], X2[:,24*7:24*7+24])
+        print 'Regression', melCD(X2MAP[:,24*7:24*7+24], X2[:,24*7:24*7+24])
+        
+    hidden_layers_sizes = [jda.n_visible1]
+    #for i in range(len(sda.dA_layers)):
+        #hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    #for i in range(len(sda.dA_layers)-1, -1, -1):
+        #hidden_layers_sizes.append(sda.dA_layers[i].n_hidden)
+    hidden_layers_sizes.append(jda.n_hidden)
+    hidden_layers_sizes.append(jda.n_visible2)
+    random_seed = 1234
+    rng = np.random.RandomState(random_seed)
+    x = T.matrix('x')  # the data is presented as rasterized images
+    from dnn_dropout import MLP
+
+    pretrained = MLP(rng=rng, input=x,
+                 layer_sizes=hidden_layers_sizes,
+                 dropout_rates=[0.0]*len(hidden_layers_sizes),
+                 activations=[CUR_ACIVATION_FUNCTION]*len(hidden_layers_sizes),
+                 use_bias=True
+                 )
+    pretrained.layers[0].W = theano.shared(da.W1.eval())
+    pretrained.layers[0].b = theano.shared(da.b1.eval())
+    pretrained.layers[1].W = theano.shared(da.W2_prime.eval())
+    pretrained.layers[1].b = theano.shared(da.b2_prime.eval())
+
     return pretrained
 
 
@@ -1290,40 +1479,102 @@ def model5_pre(): # 1,(A, Bb_joint, Bb_backprop, C_joint, C_backprop),MCEP15
 def model6_pre(): # 1,(A, Bb_joint, Bb_backprop, C_joint, C_backprop),MCEP
     pass
 
+def test_wav(feature_type, order, delta, neighbours,
+                 emphasis, frame_size, frame_rate):
+    
+    wpath = '../gitlab/voice-conversion/src/lib/arctic/cmu_us_rms_arctic/wav/arctic_a0001.wav'
+    fx = FeatureExtractor(feature_type, order, delta, neighbours, emphasis, frame_size, frame_rate)
+
+    cur_wav = read_wav(wpath)
+    cur_gci = None
+    data, ftr = fx.analyze(cur_wav, cur_gci)
+    f=open('norm_male.pkl','r')
+    mins=pickle.load(f)#[24*7:24*7+24]##$
+    ranges=pickle.load(f)#[24*7:24*7+24]##$
+    f.close()
+    if 0: #ann
+        f=open('dnn_male_1000_100.pkl','r')
+        dnn=pickle.load(f)
+        f.close()
+        x = T.matrix('x')  # the data is presented as rasterized images
+        val = normalize_data(data.value,mins,ranges)
+        test_set_x=theano.shared(val.astype(np.float32))
+        test_fprop = theano.function(inputs=[],
+                                     outputs=dnn.layers[-1].output,
+                                     givens={
+                                         dnn.layers[0].input: test_set_x
+                                         })
+        mapped=test_fprop()
+        mapped=unnormalize_data(mapped,mins,ranges)
+    elif 1: #gmm
+        f=open('jdgmm100_male.pkl')
+        model=pickle.load(f)
+        f.close()
+        val = normalize_data(data.value[:,24*7:24*7+24],mins[24*7:24*7+24],ranges[24*7:24*7+24])
+        mapped1=model.map(val)
+        mapped1=unnormalize_data(mapped1,mins,ranges)
+        mapped = data.value.copy()
+        mapped[:,24*7:24*7+24] = mapped1
+        
+
+    ftr['pit'].value[ftr['pit'].value!=0] = np.linspace(140.0, 100.0, ftr['pit'].value[ftr['pit'].value!=0].shape[0])
+    new_wav=fx.synthesize(ftr, mapped)
+    return
+    
 def experiment():
-    ae_name = 'ae_1000_linear.pkl'
-    if 1: # train all TIMIT AE
-        ae_all(ae_name, hidden_layers_sizes=[1000],               
-               corruption_levels=[0.1,0.2],
+    if 1: # test
+        feature_type='MCEP'
+        order=24
+        delta=False
+        neighbours=7
+        emphasis=0.9##
+        frame_size= 0.020
+        frame_rate=0.010    
+        test_wav(feature_type=feature_type, order=order, delta=delta, neighbours=neighbours,
+	             emphasis=emphasis, frame_size= frame_size, frame_rate=frame_rate)
+    hidden_size = 1000
+    sentence_num = 100
+    ae_name = 'ae_'+str(hidden_size)+'_linear_male.pkl'
+    if 0: # train all TIMIT AE
+        ae_all(ae_name, hidden_layers_sizes=[1000,500],               
+               corruption_levels=[0.1,0.1],
                pretrain_lr=0.1,
                batch_size=20,
                training_epochs=10)
     if 1: # load norm
-        f=open('norm.pkl','r')
+        f=open('norm_male.pkl','r')
         mins=pickle.load(f)#[24*7:24*7+24]##$
         ranges=pickle.load(f)#[24*7:24*7+24]##$
         f.close()
     if 1: # load xy20
-        x20, y20, xv20, yv20, xt20, yt20 = load_xy('../clb2slt_pre.npy', num_sentences=100, mins=mins, ranges=ranges)
+        x20, y20, xv20, yv20, xt20, yt20 = load_xy('../rms2mdl_pre.npy', num_sentences=200, mins=mins, ranges=ranges)
     if 1: # load xy
-        x, y, xv, yv, xt, yt = load_xy('../clb2slt.npy', num_sentences=100, mins=mins, ranges=ranges)
+        x, y, xv, yv, xt, yt = load_xy('../rms2mdl.npy', num_sentences=sentence_num, mins=mins, ranges=ranges)
     
-    if 1:
-        dnn_train(model5_pre_from_siae, ae_name, 'dnn5_spk20.pkl',
+    model0_pre(x, y, xv, yv, xt, yt, mins, ranges,
+               hidden_layers_sizes=[x.eval().shape[1], 100, y.eval().shape[1]],
+               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+               lr=0.1,
+               batch_size=10,
+               training_epochs=100)
+    if 0:
+        dnn_train(model5_pre_from_siae, ae_name, 'dnn_male_'+str(hidden_size)+'_spk20.pkl',
                   x20, y20, xv20, yv20, xt20, yt20, mins, ranges,
-                  hidden_layers_sizes=[x.eval().shape[1], 1000, y.eval().shape[1]],
+                  hidden_layers_sizes=[x20.eval().shape[1], 1000, y20.eval().shape[1]],
                   middle_layers_sizes=[100],
                   corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                   lr=0.01,
                   batch_size=10,
-                  training_epochs=20)
-    dnn_train(model5_pre_from_speaker20, 'dnn5_spk20.pkl', 'dnn5.pkl', x, y, xv, yv, xt, yt, mins, ranges,
-              hidden_layers_sizes=[x.eval().shape[1], 1000, y.eval().shape[1]],
-              middle_layers_sizes=[100],
-               corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-               lr=0.01,
-               batch_size=10,
-               training_epochs=100)
+                  training_epochs=100)
+   
+    if 1:
+        dnn_train(model5_pre_from_speaker20, ae_name.split('.')[0]+'.jda.pkl', 'dnn_male_'+str(hidden_size)+'_'+str(sentence_num)+'.pkl', x, y, xv, yv, xt, yt, mins, ranges,
+                  hidden_layers_sizes=[x.eval().shape[1], 1000, y.eval().shape[1]],
+                  middle_layers_sizes=[100],
+                  corruption_levels=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                  lr=0.1,
+                  batch_size=10,
+                  training_epochs=100)
   
     
 if __name__ == "__main__":
