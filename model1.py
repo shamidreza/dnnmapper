@@ -30,6 +30,7 @@ import numpy
 import theano
 import theano.tensor as T
 
+from utils import load_vc_siamese, melCD
 class HiddenLayer(object):
     def __init__(self, rng, input, n_in, n_out, W=None, b=None,
                  activation=T.nnet.sigmoid):
@@ -90,7 +91,7 @@ class siames(object):
             #    W_values *= 4
             self.W1 = theano.shared(value=W_values, name='W1', borrow=True)
             b_values = numpy.zeros((n_out,), dtype=theano.config.floatX)
-            self.b = theano.shared(value=b_values, name='b1', borrow=True)
+            self.b1 = theano.shared(value=b_values, name='b1', borrow=True)
         if 1: # initialize W2 and b2
             n_in = layers_size[1]
             n_out = layers_size[2]-CS_size
@@ -207,19 +208,25 @@ class siames(object):
         self.cost = \
             T.mean((self.output4x-self.x)**2) + \
             T.mean((self.output4y-self.y)**2) + \
-            (self.spk_same*T.mean((self.output2x_CS-output2y_CS)**2) + \
-             -1.0*(1.0-self.spk_same)*T.mean((self.output2x_CS-output2y_CS)**2)) + \
-            (self.phon_same*T.mean((self.output2x-output2y)**2) + \
-             -1.0*(1.0-self.phon_same)*T.mean((self.output2x-output2y)**2))
+            (T.mean(self.spk_same*T.mean((self.output2x_CS-self.output2y_CS)**2,axis=1)) + \
+             T.mean(-1.0*(1.0-self.spk_same)*T.mean((self.output2x_CS-self.output2y_CS)**2,axis=1))) + \
+            (T.mean(self.phon_same*T.mean((self.output2x-self.output2y)**2,axis=1)) + \
+             T.mean(-1.0*(1.0-self.phon_same)*T.mean((self.output2x-self.output2y)**2,axis=1)))
             
-def test_siames(learning_rate=0.01, L1_reg=0.0001, L2_reg=0.0001, n_epochs=1000,
-             dataset='mnist.pkl.gz', batch_size=20, n_hidden=500):
+        self.rec = \
+            T.mean((self.output4x-self.x)**2) + \
+            T.mean((self.output4y-self.y)**2)
+        
+def test_siames(dataset='final_corpus.npy', 
+                learning_rate=0.1,
+                n_epochs=1000,
+                batch_size=1):
   
-    datasets = load_data(dataset)
+    datasets = load_vc_siamese(dataset)
 
-    train_set_x, train_set_y = datasets[0]
-    valid_set_x, valid_set_y = datasets[1]
-    test_set_x, test_set_y = datasets[2]
+    train_set_x, train_set_y, train_set_spk, train_set_phon = datasets[0]
+    valid_set_x, valid_set_y, valid_set_spk, valid_set_phon = datasets[1]
+    test_set_x, test_set_y, test_set_spk, test_set_phon = datasets[2]
 
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
@@ -233,57 +240,58 @@ def test_siames(learning_rate=0.01, L1_reg=0.0001, L2_reg=0.0001, n_epochs=1000,
 
     # allocate symbolic variables for the data
     index = T.lscalar()  # index to a [mini]batch
-    x = T.matrix('x')  # the data is presented as rasterized images
-    y = T.matrix('y')  # the labels are presented as 1D vector of
-                        # [int] labels
-
+    x = T.matrix('x')  # the x1
+    y = T.matrix('y')  # the x2
+    s = T.matrix('s') # the same-speaker label (0/1)
+    p = T.matrix('p') # the same-phoneme label (0/1)
     rng = numpy.random.RandomState(1234)
 
-    # construct the MLP class
-    classifier = MLP(
+    # construct the siamese class
+    regressor = siames(
         rng=rng,
-        input=x,
-        n_in=28 * 28,
-        n_hidden=n_hidden,
-        n_out=10
+        x=x,
+        y=y,
+        spk_same=s,
+        phon_same=p,
+        layers_size=[24, 200, 200, 200, 24],
+        CS_size=50,
     )
 
-    cost = (
-        classifier.mse(y)
-        + L1_reg * classifier.L1
-        + L2_reg * classifier.L2_sqr
-    )
+    cost = regressor.cost
 
     test_model = theano.function(
-        inputs=[index],
-        outputs=classifier.mse(y),
+        inputs=[],
+        outputs=regressor.rec,
         givens={
-            x: test_set_x[index * batch_size:(index + 1) * batch_size],
-            y: test_set_y[index * batch_size:(index + 1) * batch_size]
+            x: test_set_x,
+            y: test_set_y
         }
     )
 
     validate_model = theano.function(
         inputs=[index],
-        outputs=classifier.mse(y),
+        outputs=regressor.rec,
         givens={
-            x: valid_set_x[index * batch_size:(index + 1) * batch_size],
-            y: valid_set_y[index * batch_size:(index + 1) * batch_size]
+            x: test_set_x[index * batch_size: (index + 1) * batch_size],
+            y: test_set_y[index * batch_size: (index + 1) * batch_size]
         }
     )
     
     fprop_model = theano.function(
         inputs=[],
-        outputs=classifier.output,
+        outputs=[regressor.output4x, regressor.output4y],
         givens={
-            x: valid_set_x
+            x: test_set_x,
+            y: test_set_y
         }
     )
-    gparams = [T.grad(cost, param) for param in classifier.params]
+    tx_np = test_set_x.eval()
+    ty_np = test_set_y.eval()
+    gparams = [T.grad(cost, param) for param in regressor.params]
   
     updates = [
         (param, param - learning_rate * gparam)
-        for param, gparam in zip(classifier.params, gparams)
+        for param, gparam in zip(regressor.params, gparams)
     ]
 
     train_model = theano.function(
@@ -292,7 +300,9 @@ def test_siames(learning_rate=0.01, L1_reg=0.0001, L2_reg=0.0001, n_epochs=1000,
         updates=updates,
         givens={
             x: train_set_x[index * batch_size: (index + 1) * batch_size],
-            y: train_set_y[index * batch_size: (index + 1) * batch_size]
+            y: train_set_y[index * batch_size: (index + 1) * batch_size],
+            s: train_set_spk[index * batch_size: (index + 1) * batch_size],
+            p: train_set_phon[index * batch_size: (index + 1) * batch_size]
         }
     )
 
@@ -301,7 +311,7 @@ def test_siames(learning_rate=0.01, L1_reg=0.0001, L2_reg=0.0001, n_epochs=1000,
     ###############
     print '... training'
 
-    patience = 10000  # look as this many examples regardless
+    patience = 100000000  # look as this many examples regardless
     patience_increase = 2  # wait this much longer when a new best is
                            # found
     improvement_threshold = 0.995  # a relative improvement of this much is
@@ -324,48 +334,41 @@ def test_siames(learning_rate=0.01, L1_reg=0.0001, L2_reg=0.0001, n_epochs=1000,
         epoch = epoch + 1
         for minibatch_index in xrange(n_train_batches):
             minibatch_avg_cost = train_model(minibatch_index)
-
+            #print validate_model(minibatch_index)
+            #print regressor.b4.eval().mean()
+            #print regressor.b4.eval().std()
+            #print regressor.b4.eval().max()
+            #print regressor.b4.eval().min()
+            #print '******'
+            #print regressor.W4.eval().mean()
+            #print regressor.W4.eval().std()
+            #print regressor.W4.eval().max()
+            #print regressor.W4.eval().min()
+            #print '------'
+            
+            if minibatch_index % 10000 == 0:
+                if numpy.isnan(validate_model(0)):
+                    print 'here'
+                out = fprop_model()
+                print melCD(out[0],tx_np), melCD(out[1],ty_np)
+                
+            #print test_model()
             # iteration number
             iter = (epoch - 1) * n_train_batches + minibatch_index
-
+            
             if (iter + 1) % validation_frequency == 0:
-                # compute zero-one loss on validation set
-                validation_losses = [validate_model(i) for i
-                                     in xrange(n_valid_batches)]
-                this_validation_loss = numpy.mean(validation_losses)
-
+                this_validation_loss = test_model()
                 print(
-                    'epoch %i, minibatch %i/%i, validation error %f %%' %
+                    'epoch %i, minibatch %i/%i, validation error %f' %
                     (
                         epoch,
                         minibatch_index + 1,
                         n_train_batches,
-                        this_validation_loss * 100.
+                        this_validation_loss
                     )
                 )
-
-                # if we got the best validation score until now
-                if this_validation_loss < best_validation_loss:
-                    #improve patience if loss improvement is good enough
-                    if (
-                        this_validation_loss < best_validation_loss *
-                        improvement_threshold
-                    ):
-                        patience = max(patience, iter * patience_increase)
-
-                    best_validation_loss = this_validation_loss
-                    best_iter = iter
-
-                    # test it on the test set
-                    test_losses = [test_model(i) for i
-                                   in xrange(n_test_batches)]
-                    test_score = numpy.mean(test_losses)
-
-                    print(('     epoch %i, minibatch %i/%i, test error of '
-                           'best model %f %%') %
-                          (epoch, minibatch_index + 1, n_train_batches,
-                           test_score * 100.))
-
+    
+                   
             if patience <= iter:
                 done_looping = True
                 break
@@ -379,90 +382,5 @@ def test_siames(learning_rate=0.01, L1_reg=0.0001, L2_reg=0.0001, n_epochs=1000,
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 
-def load_data(dataset):
-    ''' Loads the dataset
-
-    :type dataset: string
-    :param dataset: the path to the dataset (here MNIST)
-    '''
-
-    #############
-    # LOAD DATA #
-    #############
-
-    # Download the MNIST dataset if it is not present
-    data_dir, data_file = os.path.split(dataset)
-    if data_dir == "" and not os.path.isfile(dataset):
-        # Check if dataset is in the data directory.
-        new_path = os.path.join(
-            os.path.split(__file__)[0],
-            "..",
-            "data",
-            dataset
-        )
-        if os.path.isfile(new_path) or data_file == 'mnist.pkl.gz':
-            dataset = new_path
-
-    if (not os.path.isfile(dataset)) and data_file == 'mnist.pkl.gz':
-        import urllib
-        origin = (
-            'http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
-        )
-        print 'Downloading data from %s' % origin
-        urllib.urlretrieve(origin, dataset)
-
-    print '... loading data'
-
-    # Load the dataset
-    f = gzip.open(dataset, 'rb')
-    train_set, valid_set, test_set = cPickle.load(f)
-    f.close()
-    #train_set, valid_set, test_set format: tuple(input, target)
-    #input is an numpy.ndarray of 2 dimensions (a matrix)
-    #witch row's correspond to an example. target is a
-    #numpy.ndarray of 1 dimensions (vector)) that have the same length as
-    #the number of rows in the input. It should give the target
-    #target to the example with the same index in the input.
-
-    def shared_dataset(data_xy, borrow=True):
-        """ Function that loads the dataset into shared variables
-
-        The reason we store our dataset in shared variables is to allow
-        Theano to copy it into the GPU memory (when code is run on GPU).
-        Since copying data into the GPU is slow, copying a minibatch everytime
-        is needed (the default behaviour if the data is not in a shared
-        variable) would lead to a large decrease in performance.
-        """
-        #import copy
-        data_x, data_y = data_xy
-        #daya_y = copy.deepcopy(data_x)
-        data_y_new = numpy.zeros((data_y.shape[0], data_y.max()+1))
-        for i in range(data_y.shape[0]):
-            data_y_new[i, data_y[i]] = 1
-        data_y = data_y_new
-        shared_x = theano.shared(numpy.asarray(data_x,
-                                               dtype=theano.config.floatX),
-                                 borrow=borrow)
-        shared_y = theano.shared(numpy.asarray(data_y,
-                                               dtype=theano.config.floatX),
-                                 borrow=borrow)
-        # When storing data on the GPU it has to be stored as floats
-        # therefore we will store the labels as ``floatX`` as well
-        # (``shared_y`` does exactly that). But during our computations
-        # we need them as ints (we use labels as index, and if they are
-        # floats it doesn't make sense) therefore instead of returning
-        # ``shared_y`` we will have to cast it to int. This little hack
-        # lets ous get around this issue
-        return shared_x, shared_y
-
-    test_set_x, test_set_y = shared_dataset(test_set)
-    valid_set_x, valid_set_y = shared_dataset(valid_set)
-    train_set_x, train_set_y = shared_dataset(train_set)
-
-    rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),
-            (test_set_x, test_set_y)]
-    return rval
-
-
 if __name__ == '__main__':
-    test_mlp()
+    test_siames()

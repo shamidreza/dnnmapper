@@ -235,6 +235,76 @@ def load_vc(dataset, num_sentences):
     rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),
             (test_set_x, test_set_y)]
     return rval
+def load_vc_siamese(dataset):
+    #import sys
+    #sys.path.append('../gitlab/voice-conversion/src')
+    #import voice_conversion
+    
+    import pickle
+    f=open(dataset,'r')
+    #vcdata=pickle.load(f)
+    #x=vcdata['aligned_data1'][:,:24]
+    #y=vcdata['aligned_data2'][:,:24]
+    x=np.load(f).astype(np.float32)[:6766924,:]
+    y=np.load(f).astype(np.float32)[:6766924,:]
+    spk=np.load(f).astype(np.float32)[:6766924,:]
+    phon=np.load(f).astype(np.float32)[:6766924,:]
+    #x=numpy.log(x)##
+    #y=numpy.log(y)##
+    f.close()
+    num = x.shape[0]
+    st_train = 0
+    en_train = int(num * (90.0/100.0)) # 64 train,18 valid, 18 test
+    #st_valid = en_train
+    #en_valid = en_train+int(num * (18.0/100.0))
+    st_test = en_train
+    en_test = num
+    st_valid = en_train
+    en_valid = num
+    if 0:# not now
+	x_mean = x[st_train:en_train,:].mean(axis=0)
+	y_mean = y[st_train:en_train,:].mean(axis=0)
+	x_std = x[st_train:en_train,:].std(axis=0)
+	y_std = y[st_train:en_train,:].std(axis=0)
+	x -= x_mean
+	y -= y_mean
+	x /= x_std
+	y /= y_std
+
+    import theano
+    train_set_x = theano.shared(np.asarray(x[st_train:en_train,:],##
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    train_set_y = theano.shared(np.asarray(y[st_train:en_train,:],##
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    train_set_spk = theano.shared(np.asarray(spk[st_train:en_train,:],##
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    train_set_phon = theano.shared(np.asarray(phon[st_train:en_train,:],##
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    test_set_x = theano.shared(np.asarray(x[st_test:en_test,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    test_set_y = theano.shared(np.asarray(y[st_test:en_test,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    test_set_spk = theano.shared(np.asarray(spk[st_test:en_test,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    test_set_phon = theano.shared(np.asarray(phon[st_test:en_test,:],
+                                dtype=theano.config.floatX),
+                                 borrow=True)
+    valid_set_x = test_set_x
+    valid_set_y = test_set_y
+    valid_set_spk = test_set_spk
+    valid_set_phon = test_set_phon
+    rval = [(train_set_x, train_set_y, train_set_spk, train_set_phon),
+            (valid_set_x, valid_set_y, valid_set_spk, valid_set_phon),
+            (test_set_x, test_set_y, test_set_spk, test_set_phon)]
+    return rval
+
 def load_xy(dataset, num_sentences, mins, ranges):
     from utils import load_vc
     print '... loading the data'
