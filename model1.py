@@ -251,6 +251,8 @@ def ae_all(out_file, hidden_layers_sizes=None,
     
     train_set = theano.shared(new_data[:int(0.9*new_data.shape[0]), :])
     test_set = theano.shared(new_data[int(0.9*new_data.shape[0]):, :])
+    test_set_numpy = new_data[int(0.9*new_data.shape[0]):, :]
+
     print '... building the model'
     from ae_stacked import SdA
     sda = SdA(
@@ -288,7 +290,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
             if i==0:
                 XH = reconstruct()
                 #XH = unnormalize_data(XH, mins, ranges)[:,24*7:24*7+24]
-                print 'melCD', melCD(XH, test_set)
+                print 'melCD', melCD(XH, test_set_numpy)
             lr *= 0.99
             if lr < 0.01:
                 lr = 0.01
