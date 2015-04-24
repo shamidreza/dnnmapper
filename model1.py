@@ -243,7 +243,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
     print '... loading the data'
     data=load_vc_all_speakers_24()   
    
-    numpy_rng = np.random.RandomState(89677)
+    numpy_rng = numpy.random.RandomState(89677)
     
     import theano
     n_train_batches = int(0.9*new_data.shape[0])
