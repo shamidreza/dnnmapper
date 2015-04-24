@@ -241,7 +241,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
            batch_size=None,
            training_epochs=None): # ae all on TIMIT
     print '... loading the data'
-    data=load_vc_all_speakers_24()   
+    new_data=load_vc_all_speakers_24()   
    
     numpy_rng = numpy.random.RandomState(89677)
     
