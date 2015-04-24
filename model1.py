@@ -291,6 +291,7 @@ def ae_all(out_file, hidden_layers_sizes=None,
                 XH = reconstruct()
                 #XH = unnormalize_data(XH, mins, ranges)[:,24*7:24*7+24]
                 print 'melCD', melCD(XH, test_set_numpy)
+            
             lr *= 0.99
             if lr < 0.01:
                 lr = 0.01
@@ -554,8 +555,8 @@ if __name__ == '__main__':
         ae_name = 'ae_1000_500_linear_male.pkl'
         ae_all(ae_name, hidden_layers_sizes=[1000,200],               
                    corruption_levels=[0.1,0.1],
-                   pretrain_lr=0.1,
+                   pretrain_lr=0.05,
                    batch_size=20,
-                   training_epochs=10)
+                   training_epochs=20)
     if 0: # train siamese
         test_siames()

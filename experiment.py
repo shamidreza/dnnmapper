@@ -17,7 +17,7 @@
 from utils import *
 
 
-CUR_ACIVATION_FUNCTION = Tanh
+CUR_ACIVATION_FUNCTION = ReLU
 
 def ae_all(out_file, hidden_layers_sizes=None,
            corruption_levels=None,

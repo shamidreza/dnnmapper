@@ -188,11 +188,11 @@ def load_vc_all_speakers_24():
     st=0
     cnt = 0
     if exists('../TIMIT_code/spk_wav/'):
-	iter_directory = iglob('../TIMIT_code/spk_wav/M*.pkl')
+	iter_directory = iglob('../TIMIT_code/spk_wav/*.pkl')
     else:
-	iter_directory = iglob('../gitlab/voice-conversion/src/spk_wav/M*.pkl')
+	iter_directory = iglob('../gitlab/voice-conversion/src/spk_wav/*.pkl')
     for fid in iter_directory:
-	print'read_TIMIT_append_all: reaing file '+ fid
+	print cnt,'read_TIMIT_append_all: reaing file '+ fid
 	f=open(fid, 'r')
 	cur_fx=pickle.load(f)[:,7*24:7*24+24]
 	f.close()
