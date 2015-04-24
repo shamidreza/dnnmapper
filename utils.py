@@ -199,8 +199,8 @@ def load_vc_all_speakers_24():
 	data[st:st+cur_fx.shape[0],:] = cur_fx
 	st += cur_fx.shape[0]
 	cnt+=1
-	if cnt > 10:
-	    break
+	#if cnt > 10:
+	#    break
     data = data[:st,:]
     return data
 ##def load_vc(dataset='c2s.npy', num_sentences=200):
