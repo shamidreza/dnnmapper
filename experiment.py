@@ -15,10 +15,7 @@
     along with dnnmapper.  If not, see <http://www.gnu.org/licenses/>.
 """
 from utils import *
-vcpath = '../gitlab/voice-conversion/src/'
-import sys
-sys.path.append(vcpath)
-from vc import *
+
 
 CUR_ACIVATION_FUNCTION = Tanh
 
@@ -1579,4 +1576,8 @@ def experiment():
   
     
 if __name__ == "__main__":
+    vcpath = '../gitlab/voice-conversion/src/'
+    import sys
+    sys.path.append(vcpath)
+    from vc import *
     experiment()
