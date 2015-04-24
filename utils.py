@@ -143,7 +143,7 @@ def normalize_data(data, mins, ranges):
 	new_data[:, i] -= mins[i]
 	new_data[:, i] /= (ranges[i]*3.0)
 	#assert np.all(new_data[:, i] >= 0.0) and np.all(new_data[:, i] <= 1.0)
-    return new_data
+    return data##$
 def unnormalize_data(data, mins, ranges):
     import numpy as np
     import copy
@@ -151,7 +151,7 @@ def unnormalize_data(data, mins, ranges):
     for i in range(new_data.shape[1]):	
 	new_data[:, i] *= (ranges[i]*3.0)
 	new_data[:, i] += mins[i]
-    return new_data
+    return data##$new_data
 
 
 def load_vc_all_speakers():
@@ -170,6 +170,31 @@ def load_vc_all_speakers():
 	print'read_TIMIT_append_all: reaing file '+ fid
 	f=open(fid, 'r')
 	cur_fx=pickle.load(f)
+	f.close()
+	data[st:st+cur_fx.shape[0],:] = cur_fx
+	st += cur_fx.shape[0]
+	cnt+=1
+	#if cnt > 10:
+	#    break
+    data = data[:st,:]
+    return data
+
+def load_vc_all_speakers_24():
+    from glob import iglob
+    from os import path, popen
+    from os.path import exists
+    import pickle
+    data = np.zeros((630*3500,24),dtype=np.float32)
+    st=0
+    cnt = 0
+    if exists('../TIMIT_code/spk_wav/'):
+	iter_directory = iglob('../TIMIT_code/spk_wav/M*.pkl')
+    else:
+	iter_directory = iglob('../gitlab/voice-conversion/src/spk_wav/M*.pkl')
+    for fid in iter_directory:
+	print'read_TIMIT_append_all: reaing file '+ fid
+	f=open(fid, 'r')
+	cur_fx=pickle.load(f)[:,7*24:7*24+24]
 	f.close()
 	data[st:st+cur_fx.shape[0],:] = cur_fx
 	st += cur_fx.shape[0]

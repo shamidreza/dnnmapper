@@ -30,7 +30,7 @@ import numpy
 import theano
 import theano.tensor as T
 
-from utils import load_vc_siamese, melCD
+from utils import load_vc_siamese, melCD, load_vc_all_speakers_24
 class HiddenLayer(object):
     def __init__(self, rng, input, n_in, n_out, W=None, b=None,
                  activation=T.nnet.sigmoid):
@@ -75,7 +75,10 @@ class siames(object):
         self.x = x
         self.y = y
         self.spk_same = spk_same
+        self.spk_same_not = T.matrix('sn')
         self.phon_same = phon_same
+        self.phon_same_not = T.matrix('pn')
+
         if 1: # initialize W1 and b1
             n_in = layers_size[0]
             n_out = layers_size[1]
@@ -205,20 +208,100 @@ class siames(object):
                        self.W3_CS, self.b3_CS,
                        self.W4, self.b4]
         
+        D = T.mean((self.output2x-self.output2y)**2)
+        D_CS = T.mean((self.output2x_CS-self.output2y_CS)**2)
+
         self.cost = \
             T.mean((self.output4x-self.x)**2) + \
             T.mean((self.output4y-self.y)**2) + \
-            (T.mean(self.spk_same*T.mean((self.output2x_CS-self.output2y_CS)**2,axis=1)) + \
-             T.mean(-1.0*(1.0-self.spk_same)*T.mean((self.output2x_CS-self.output2y_CS)**2,axis=1))) + \
-            (T.mean(self.phon_same*T.mean((self.output2x-self.output2y)**2,axis=1)) + \
-             T.mean(-1.0*(1.0-self.phon_same)*T.mean((self.output2x-self.output2y)**2,axis=1)))
+            T.mean(self.spk_same*D_CS) #+ \
+            #T.mean(-(1.0-self.spk_same)*D_CS) #+ \
+            #T.mean(self.phon_same*D) + \
+            #T.mean(-(1.0-self.phon_same)*D)
+
+            #-(1.0-self.spk_same)*T.exp(-T.sum((self.output2x_CS-self.output2y_CS)**2)) + \
+            #self.phon_same*T.mean((self.output2x-self.output2y)**2) + \
+            #-(1.0-self.phon_same)*T.exp(-T.sum((self.output2x-self.output2y)**2))
             
+            #T.switch(self.spk_same,
+                     #T.mean((self.output2x_CS-self.output2y_CS)**2),
+                     ##T.exp(-T.sum((self.output2x_CS-self.output2y_CS)**2))) + \
+                     #T.mean((self.output2x_CS-self.output2y_CS)**2)) + \
+            #T.switch(self.phon_same,
+                     #T.mean((self.output2x-self.output2y)**2),
+                     ##T.exp(-T.sum((self.output2x-self.output2y)**2)))
+                     #T.mean((self.output2x-self.output2y)**2))
         self.rec = \
             T.mean((self.output4x-self.x)**2) + \
             T.mean((self.output4y-self.y)**2)
         
+def ae_all(out_file, hidden_layers_sizes=None,
+           corruption_levels=None,
+           pretrain_lr=None,
+           batch_size=None,
+           training_epochs=None): # ae all on TIMIT
+    print '... loading the data'
+    data=load_vc_all_speakers_24()   
+   
+    numpy_rng = np.random.RandomState(89677)
+    
+    import theano
+    n_train_batches = int(0.9*new_data.shape[0])
+    n_train_batches /= batch_size
+    
+    train_set = theano.shared(new_data[:int(0.9*new_data.shape[0]), :])
+    test_set = theano.shared(new_data[int(0.9*new_data.shape[0]):, :])
+    print '... building the model'
+    from ae_stacked import SdA
+    sda = SdA(
+        numpy_rng=numpy_rng,
+        n_ins=new_data.shape[1],
+        hidden_layers_sizes=hidden_layers_sizes,#[1000, 1000],
+    )
+    print '... getting the pretraining functions'
+    pretraining_fns = sda.pretraining_functions(train_set_x=train_set,
+                                                batch_size=batch_size)
+    
+    print '...training the model'
+    import time
+    import pickle
+    start_time = time.clock()
+    reconstruct = theano.function(
+                inputs=[                   
+                ],
+                outputs=sda.dA_layers[0].xrec,
+                givens={
+                    sda.dA_layers[0].x: test_set
+                }
+            )
+    #corruption_levels = [0.2, 0.3]
+    lr = pretrain_lr
+    for i in xrange(sda.n_layers):
+        # go through pretraining epochs
+        for epoch in xrange(training_epochs):
+            # go through the training set
+            c = []
+            for batch_index in xrange(n_train_batches):
+                c.append(pretraining_fns[i](index=batch_index,
+                         corruption=corruption_levels[i],
+                         lr=pretrain_lr))
+            if i==0:
+                XH = reconstruct()
+                #XH = unnormalize_data(XH, mins, ranges)[:,24*7:24*7+24]
+                print 'melCD', melCD(XH, test_set)
+            lr *= 0.99
+            if lr < 0.01:
+                lr = 0.01
+            import pickle
+            f=open(out_file,'w+')
+            pickle.dump(sda, f)
+            #pickle.dump(mins, f)
+            #pickle.dump(ranges, f)
+            f.flush()
+            f.close()
+        
 def test_siames(dataset='final_corpus.npy', 
-                learning_rate=0.1,
+                learning_rate=0.02,
                 n_epochs=1000,
                 batch_size=1):
   
@@ -245,17 +328,22 @@ def test_siames(dataset='final_corpus.npy',
     s = T.matrix('s') # the same-speaker label (0/1)
     p = T.matrix('p') # the same-phoneme label (0/1)
     rng = numpy.random.RandomState(1234)
-
-    # construct the siamese class
-    regressor = siames(
-        rng=rng,
-        x=x,
-        y=y,
-        spk_same=s,
-        phon_same=p,
-        layers_size=[24, 200, 200, 200, 24],
-        CS_size=50,
-    )
+    if 0:
+        # construct the siamese class
+        regressor = siames(
+            rng=rng,
+            x=x,
+            y=y,
+            spk_same=s,
+            phon_same=p,
+            layers_size=[24, 200, 200, 200, 24],
+            CS_size=50,
+        )
+    else:
+        import pickle
+        f=open('siamese4.pkl', 'r')
+        regressor = pickle.load(f)
+        f.close()
 
     cost = regressor.cost
 
@@ -263,8 +351,8 @@ def test_siames(dataset='final_corpus.npy',
         inputs=[],
         outputs=regressor.rec,
         givens={
-            x: test_set_x,
-            y: test_set_y
+            regressor.x: test_set_x,
+            regressor.y: test_set_y
         }
     )
 
@@ -272,19 +360,22 @@ def test_siames(dataset='final_corpus.npy',
         inputs=[index],
         outputs=regressor.rec,
         givens={
-            x: test_set_x[index * batch_size: (index + 1) * batch_size],
-            y: test_set_y[index * batch_size: (index + 1) * batch_size]
+            regressor.x: test_set_x[index * batch_size: (index + 1) * batch_size],
+            regressor.y: test_set_y[index * batch_size: (index + 1) * batch_size]
         }
     )
     
     fprop_model = theano.function(
         inputs=[],
-        outputs=[regressor.output4x, regressor.output4y],
+        outputs=[regressor.output4x, regressor.output4y,
+                 regressor.output2x,regressor.output2x_CS,
+                 regressor.output2y,regressor.output2y_CS],
         givens={
-            x: test_set_x,
-            y: test_set_y
+            regressor.x: test_set_x,
+            regressor.y: test_set_y
         }
     )
+    
     tx_np = test_set_x.eval()
     ty_np = test_set_y.eval()
     gparams = [T.grad(cost, param) for param in regressor.params]
@@ -299,13 +390,87 @@ def test_siames(dataset='final_corpus.npy',
         outputs=cost,
         updates=updates,
         givens={
-            x: train_set_x[index * batch_size: (index + 1) * batch_size],
-            y: train_set_y[index * batch_size: (index + 1) * batch_size],
-            s: train_set_spk[index * batch_size: (index + 1) * batch_size],
-            p: train_set_phon[index * batch_size: (index + 1) * batch_size]
+            regressor.x: train_set_x[index * batch_size: (index + 1) * batch_size],
+            regressor.y: train_set_y[index * batch_size: (index + 1) * batch_size],
+            regressor.spk_same: train_set_spk[index * batch_size: (index + 1) * batch_size]#,
+            #regressor.phon_same: train_set_phon[index * batch_size: (index + 1) * batch_size]
         }
     )
+    
+    if 1:
+        import pickle
+        f=open('wavs_timit.pkl','r')
+        wav_slt=pickle.load(f)
+        wav_clb=pickle.load(f)
+        wav_rms=pickle.load(f)
+        wav_mdl=pickle.load(f)
+        f.close()
+        fprop2_model = theano.function(
+            inputs=[],
+            outputs=[regressor.output4x, regressor.output4y,
+                     regressor.output2x,regressor.output2x_CS,
+                     regressor.output2y,regressor.output2y_CS],
+            givens={
+                regressor.x: theano.shared(wav_clb.astype(numpy.float32)),
+                regressor.y: theano.shared(wav_slt.astype(numpy.float32))
+            }
+        )
+        fprop3_model = theano.function(
+            inputs=[],
+            outputs=[regressor.output4x, regressor.output4y,
+                     regressor.output2x,regressor.output2x_CS,
+                     regressor.output2y,regressor.output2y_CS],
+            givens={
+                regressor.x: theano.shared(wav_rms.astype(numpy.float32)),
+                regressor.y: theano.shared(wav_mdl.astype(numpy.float32))
+            }
+        )
+        
+        out2 = fprop2_model()
+        out3 = fprop3_model()
+        import tsne
+        vis1=tsne.bh_sne(numpy.r_[out2[3],out2[5],out3[3], out3[5]].astype(numpy.float64))
+        vis2=tsne.bh_sne(numpy.r_[out2[2],out2[4],out3[2], out3[4]].astype(numpy.float64))
+        vis0=tsne.bh_sne(numpy.r_[wav_clb,wav_slt,wav_rms, wav_mdl].astype(numpy.float64))
 
+        from matplotlib import pyplot as pp
+        if 1: # vis 0
+            st = 0
+            pp.plot(vis0[st:st+wav_clb.shape[0],0], vis0[st:st+wav_clb.shape[0],1],'b*')
+            st+=wav_clb.shape[0]
+            pp.plot(vis0[st:st+wav_slt.shape[0],0], vis0[st:st+wav_slt.shape[0],1],'r+')
+            st+=wav_slt.shape[0]
+            pp.plot(vis0[st:st+wav_rms.shape[0],0], vis0[st:st+wav_rms.shape[0],1],'go')
+            st+=wav_rms.shape[0]
+            pp.plot(vis0[st:st+wav_mdl.shape[0],0], vis0[st:st+wav_mdl.shape[0],1],'ko')
+            pp.legend(['clb', 'slt','rms','mdl'])
+
+            pp.show()
+        if 1: # vis 1
+            st = 0
+            pp.plot(vis1[st:st+wav_clb.shape[0],0], vis1[st:st+wav_clb.shape[0],1],'b*')
+            st+=wav_clb.shape[0]
+            pp.plot(vis1[st:st+wav_slt.shape[0],0], vis1[st:st+wav_slt.shape[0],1],'r+')
+            st+=wav_slt.shape[0]
+            pp.plot(vis1[st:st+wav_rms.shape[0],0], vis1[st:st+wav_rms.shape[0],1],'go')
+            st+=wav_rms.shape[0]
+            pp.plot(vis1[st:st+wav_mdl.shape[0],0], vis1[st:st+wav_mdl.shape[0],1],'ko')
+            pp.legend(['clb', 'slt','rms','mdl'])
+
+            pp.show()
+            
+        if 1: # vis 2
+            st = 0
+            pp.plot(vis2[st:st+wav_clb.shape[0],0], vis2[st:st+wav_clb.shape[0],1],'b*')
+            st+=wav_clb.shape[0]
+            pp.plot(vis2[st:st+wav_slt.shape[0],0], vis2[st:st+wav_slt.shape[0],1],'r+')
+            st+=wav_slt.shape[0]
+            pp.plot(vis2[st:st+wav_rms.shape[0],0], vis2[st:st+wav_rms.shape[0],1],'go')
+            st+=wav_rms.shape[0]
+            pp.plot(vis2[st:st+wav_mdl.shape[0],0], vis2[st:st+wav_mdl.shape[0],1],'ko')
+            pp.legend(['clb', 'slt','rms','mdl'])
+            pp.show()
+        a=0
     ###############
     # TRAIN MODEL #
     ###############
@@ -346,7 +511,7 @@ def test_siames(dataset='final_corpus.npy',
             #print regressor.W4.eval().min()
             #print '------'
             
-            if minibatch_index % 10000 == 0:
+            if minibatch_index % 100000 == 0:
                 if numpy.isnan(validate_model(0)):
                     print 'here'
                 out = fprop_model()
@@ -383,4 +548,12 @@ def test_siames(dataset='final_corpus.npy',
 
 
 if __name__ == '__main__':
-    test_siames()
+    if 1: # ae all
+        ae_name = 'ae_1000_500_linear_male.pkl'
+        ae_all(ae_name, hidden_layers_sizes=[1000,200],               
+                   corruption_levels=[0.1,0.1],
+                   pretrain_lr=0.1,
+                   batch_size=20,
+                   training_epochs=10)
+    if 0: # train siamese
+        test_siames()

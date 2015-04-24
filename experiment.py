@@ -370,7 +370,7 @@ def model0_pre(x, y, xv, yv, xt, yt, mins, ranges,
     import sys
     sys.path.append('../gitlab/pysig/src/python/')
     from pysig.learning.mapping import JDGMM
-    model=JDGMM(Q=64,regularizer=0.1)
+    model=JDGMM(Q=128,regularizer=0.02)
     x=x.eval().astype(np.float64)[:,7*24:7*24+24]
     y=y.eval().astype(np.float64)[:,7*24:7*24+24]
     xt=xt.eval().astype(np.float64)[:,7*24:7*24+24]
@@ -386,7 +386,7 @@ def model0_pre(x, y, xv, yv, xt, yt, mins, ranges,
     print 'Regression ', melCD(X2,YH)#np.mean(np.mean((YH-X2)**2,1))
     print 'Baseline! ', melCD(X1,X2)#np.mean(np.mean((X1-X2)**2,1))
     import pickle
-    f=open('jdgmm100_male.pkl','w+')
+    f=open('jdgmm3_male.pkl','w+')
     pickle.dump(model, f)
     f.flush()
     f.close()
@@ -1507,7 +1507,7 @@ def test_wav(feature_type, order, delta, neighbours,
         mapped=test_fprop()
         mapped=unnormalize_data(mapped,mins,ranges)
     elif 1: #gmm
-        f=open('jdgmm100_male.pkl')
+        f=open('jdgmm1002_male.pkl')
         model=pickle.load(f)
         f.close()
         val = normalize_data(data.value[:,24*7:24*7+24],mins[24*7:24*7+24],ranges[24*7:24*7+24])
@@ -1519,6 +1519,7 @@ def test_wav(feature_type, order, delta, neighbours,
 
     ftr['pit'].value[ftr['pit'].value!=0] = np.linspace(140.0, 100.0, ftr['pit'].value[ftr['pit'].value!=0].shape[0])
     new_wav=fx.synthesize(ftr, mapped)
+    
     return
     
 def experiment():
