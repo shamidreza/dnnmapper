@@ -157,7 +157,7 @@ class SdA(object):
             if i == 0:
                 layer_input = self.x
             else:
-                layer_input = self.sigmoid_layers[-1].output
+                layer_input = self.dA_layers[-1].xhid
 
             sigmoid_layer = HiddenLayer(rng=numpy_rng,
                                         input=layer_input,

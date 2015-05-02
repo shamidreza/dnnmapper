@@ -17,7 +17,7 @@
 from utils import *
 
 
-CUR_ACIVATION_FUNCTION = ReLU
+CUR_ACIVATION_FUNCTION = Sigmoid
 
 def ae_all(out_file, hidden_layers_sizes=None,
            corruption_levels=None,

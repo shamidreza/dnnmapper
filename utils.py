@@ -199,8 +199,8 @@ def load_vc_all_speakers_24():
 	data[st:st+cur_fx.shape[0],:] = cur_fx
 	st += cur_fx.shape[0]
 	cnt+=1
-	#if cnt > 10:
-	#    break
+	#if cnt > 200:
+	    #break
     data = data[:st,:]
     return data
 ##def load_vc(dataset='c2s.npy', num_sentences=200):
@@ -261,73 +261,160 @@ def load_vc(dataset, num_sentences):
             (test_set_x, test_set_y)]
     return rval
 def load_vc_siamese(dataset):
-    #import sys
-    #sys.path.append('../gitlab/voice-conversion/src')
-    #import voice_conversion
+    if 1: # compute rval ##$
+	#import sys
+	#sys.path.append('../gitlab/voice-conversion/src')
+	#import voice_conversion
+	
+	import pickle
+	f=open(dataset,'r')
+	#vcdata=pickle.load(f)
+	#x=vcdata['aligned_data1'][:,:24]
+	#y=vcdata['aligned_data2'][:,:24]
+	x=np.load(f).astype(np.float32)[:6766924,:]
+	y=np.load(f).astype(np.float32)[:6766924,:]
+	spk=np.load(f).astype(np.float32)[:6766924,:]
+	phon=np.load(f).astype(np.float32)[:6766924,:]
+	#x=numpy.log(x)##
+	#y=numpy.log(y)##
+	f.close()
+	num = x.shape[0]
+	st_train = 0
+	##$
+	en_train = int(num * (10.0/100.0)) # 64 train,18 valid, 18 test
+	#st_valid = en_train
+	#en_valid = en_train+int(num * (18.0/100.0))
+	st_test = en_train
+	en_test = en_train+int(num * (1.0/100.0))
+	st_valid = en_train
+	en_valid = en_train+int(num * (1.0/100.0))
+	if 0:# not now
+	    x_mean = x[st_train:en_train,:].mean(axis=0)
+	    y_mean = y[st_train:en_train,:].mean(axis=0)
+	    x_std = x[st_train:en_train,:].std(axis=0)
+	    y_std = y[st_train:en_train,:].std(axis=0)
+	    x -= x_mean
+	    y -= y_mean
+	    x /= x_std
+	    y /= y_std
     
-    import pickle
-    f=open(dataset,'r')
-    #vcdata=pickle.load(f)
-    #x=vcdata['aligned_data1'][:,:24]
-    #y=vcdata['aligned_data2'][:,:24]
-    x=np.load(f).astype(np.float32)[:6766924,:]
-    y=np.load(f).astype(np.float32)[:6766924,:]
-    spk=np.load(f).astype(np.float32)[:6766924,:]
-    phon=np.load(f).astype(np.float32)[:6766924,:]
-    #x=numpy.log(x)##
-    #y=numpy.log(y)##
-    f.close()
-    num = x.shape[0]
-    st_train = 0
-    en_train = int(num * (90.0/100.0)) # 64 train,18 valid, 18 test
-    #st_valid = en_train
-    #en_valid = en_train+int(num * (18.0/100.0))
-    st_test = en_train
-    en_test = num
-    st_valid = en_train
-    en_valid = num
-    if 0:# not now
-	x_mean = x[st_train:en_train,:].mean(axis=0)
-	y_mean = y[st_train:en_train,:].mean(axis=0)
-	x_std = x[st_train:en_train,:].std(axis=0)
-	y_std = y[st_train:en_train,:].std(axis=0)
-	x -= x_mean
-	y -= y_mean
-	x /= x_std
-	y /= y_std
+	import theano
+	train_set_x = theano.shared(np.asarray(x[st_train:en_train,:],##
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	train_set_y = theano.shared(np.asarray(y[st_train:en_train,:],##
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	train_set_spk = theano.shared(np.asarray(spk[st_train:en_train,:],##
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	train_set_phon = theano.shared(np.asarray(phon[st_train:en_train,:],##
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	test_set_x = theano.shared(np.asarray(x[st_test:en_test,:],
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	test_set_y = theano.shared(np.asarray(y[st_test:en_test,:],
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	test_set_spk = theano.shared(np.asarray(spk[st_test:en_test,:],
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	test_set_phon = theano.shared(np.asarray(phon[st_test:en_test,:],
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	valid_set_x = test_set_x
+	valid_set_y = test_set_y
+	valid_set_spk = test_set_spk
+	valid_set_phon = test_set_phon
+	rval = [(train_set_x, train_set_y, train_set_spk, train_set_phon),
+	        (valid_set_x, valid_set_y, valid_set_spk, valid_set_phon),
+	        (test_set_x, test_set_y, test_set_spk, test_set_phon)]
+    else: # load rval
+	f=open('tmp_corpus.pkl','r')
+	import pickle
+	rval=pickle.load(f)
+	f.close()
+    x=0;y=0;spk=0;phon=0
+    return rval
 
-    import theano
-    train_set_x = theano.shared(np.asarray(x[st_train:en_train,:],##
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    train_set_y = theano.shared(np.asarray(y[st_train:en_train,:],##
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    train_set_spk = theano.shared(np.asarray(spk[st_train:en_train,:],##
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    train_set_phon = theano.shared(np.asarray(phon[st_train:en_train,:],##
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    test_set_x = theano.shared(np.asarray(x[st_test:en_test,:],
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    test_set_y = theano.shared(np.asarray(y[st_test:en_test,:],
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    test_set_spk = theano.shared(np.asarray(spk[st_test:en_test,:],
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    test_set_phon = theano.shared(np.asarray(phon[st_test:en_test,:],
-                                dtype=theano.config.floatX),
-                                 borrow=True)
-    valid_set_x = test_set_x
-    valid_set_y = test_set_y
-    valid_set_spk = test_set_spk
-    valid_set_phon = test_set_phon
-    rval = [(train_set_x, train_set_y, train_set_spk, train_set_phon),
-            (valid_set_x, valid_set_y, valid_set_spk, valid_set_phon),
-            (test_set_x, test_set_y, test_set_spk, test_set_phon)]
+def load_vc_model2(dataset):
+    if 1: # compute rval ##$
+	#import sys
+	#sys.path.append('../gitlab/voice-conversion/src')
+	#import voice_conversion
+	if 1:
+	    import pickle
+	    f=open(dataset,'r')	
+	    x=np.load(f).astype(np.float32)#[:6766924,:]
+	    spk=np.load(f).astype(np.bool)#[:6766924,:]
+	    #get rid of pause: first element
+	    phon=np.load(f).astype(np.bool)[:,1:]#[:6766924,:]
+	    
+	    f.close()
+	else:
+	    import pickle
+	    f=open(dataset+'2','r')	
+	    x=np.load(f)
+	    spkarg=np.load(f)
+	    #get rid of pause: first element
+	    phonarg=np.load(f)
+	    f.close()
+	    pass
+	num = x.shape[0]
+	
+	#inx_random = np.random.permutation(en_train-st_train)
+	#x[st_train:en_train,:] = x[st_train:en_train,:][inx_random,:]
+	#spkarg = np.r_[spkarg[inx_random], spkarg[en_train:]]
+	#phonarg = np.r_[phonarg[inx_random], phonarg[en_train:]]
+
+	#spk = np.zeros((x.shape[0], 630),dtype=np.float32)
+	#phon = np.zeros((x.shape[0], 60),dtype=np.float32)
+	#for i in xrange(x.shape[0]):
+	    #spk[i, spkarg[i]] = 1
+	    #phon[i, phonarg[i]] = 1
+	inx_random = np.random.permutation(x.shape[0])
+	x[:,:] = x[inx_random,:]
+	spk[:,:] = spk[inx_random,:]
+	phon[:,:] = phon[inx_random,:]
+	st_train = 0
+	en_train = int(num * (50.0/100.0))
+	st_test = num-int(num * (1.0/100.0))
+	en_test = num
+	st_valid = num-int(num * (1.0/100.0))
+	en_valid = num
+
+	import theano
+	train_set_x = theano.shared(x[st_train:en_train,:],
+	                                       borrow=True)
+
+	train_set_spk = theano.shared(np.asarray(spk[st_train:en_train,:],##
+	                                         dtype=theano.config.floatX),
+	                                          borrow=True)
+	train_set_phon = theano.shared(np.asarray(phon[st_train:en_train,:],##
+	                                          dtype=theano.config.floatX),
+	                                          borrow=True)
+	test_set_x = theano.shared(x[st_test:en_test,:],
+	                             borrow=True)
+
+	test_set_spk = theano.shared(np.asarray(spk[st_test:en_test,:],
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	test_set_phon = theano.shared(np.asarray(phon[st_test:en_test,:],
+	                            dtype=theano.config.floatX),
+	                             borrow=True)
+	valid_set_x = test_set_x
+	valid_set_spk = test_set_spk
+	valid_set_phon = test_set_phon
+	rval = [(train_set_x, train_set_spk, train_set_phon),
+	        (valid_set_x, valid_set_spk, valid_set_phon),
+	        (test_set_x, test_set_spk, test_set_phon)]
+    else: # load rval
+	f=open('tmp_corpus.pkl','r')
+	import pickle
+	rval=pickle.load(f)
+	f.close()
+    x=0;spk=0;phon=0
     return rval
 
 def load_xy(dataset, num_sentences, mins, ranges):
